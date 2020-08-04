@@ -2,7 +2,8 @@
 # -*- coding:utf8 -*-
 import rospy, os, sys, curses, time, cv2, tf
 import numpy as np
-from numpy import deg2rad
+from numpy import deg2rad, rad2deg
+from math import atan2
 from curses import wrapper
 from threading import Thread
 from geometry_msgs.msg import Twist, Pose, PoseStamped, PoseWithCovariance, PoseWithCovarianceStamped, Transform
@@ -171,7 +172,7 @@ def KeyCheck(stdscr):
     #publishing topics
     pubVel   = rospy.Publisher('/cmd_vel', Twist, 10)
 
-    setTargetPose(2, 3)
+    setTargetPose(2, 2)
 
     # While 'Esc' is not pressed
     while k != chr(27):
@@ -202,7 +203,19 @@ def setTargetPose(x, y):
     targetPose.pose.position.x = x
     targetPose.pose.position.y = y
 
+def getHeadingDifference():
+    global targetPose
+    global robotPose
 
+    y1 = robotPose.pose.position.y
+    y2 = targetPose.pose.position.y
+
+    x1 = robotPose.pose.position.x
+    x2 = targetPose.pose.position.x
+
+    headingDifference = atan2((y2-y1), (x2-x1))
+
+    return rad2deg(headingDifference)
 
 ######################### MAIN ############################
 
