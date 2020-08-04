@@ -3,7 +3,7 @@
 import rospy, os, sys, curses, time, cv2, tf
 import numpy as np
 from numpy import deg2rad, rad2deg
-from math import atan2
+from math import atan2, sqrt, pow
 from curses import wrapper
 from threading import Thread
 from geometry_msgs.msg import Twist, Pose, PoseStamped, PoseWithCovariance, PoseWithCovarianceStamped, Transform
@@ -28,6 +28,7 @@ leftCoilPose = PoseStamped()
 
 # Target pose
 targetPose = PoseStamped()
+distanceTolerance = 0.1
 
 #laser information
 laserInfo = LaserScan()
@@ -216,6 +217,22 @@ def getHeadingDifference():
     headingDifference = atan2((y2-y1), (x2-x1))
 
     return rad2deg(headingDifference)
+
+def getDistanceToTarget():
+    global targetPose
+    global robotPose
+
+    y1 = robotPose.pose.position.y
+    y2 = targetPose.pose.position.y
+    diffY = y2-y1
+
+    x1 = robotPose.pose.position.x
+    x2 = targetPose.pose.position.x
+    diffX = x2-x1
+
+    distance = sqrt(pow(diffY,2) + pow(diffX,2))
+
+    return distance
 
 ######################### MAIN ############################
 
