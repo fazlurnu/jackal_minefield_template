@@ -67,23 +67,6 @@ def updateRobotPose():
 
     robotPose = PoseStamped()
     robotPose.pose = robotOdom.pose.pose
-    
-
-def updateCoilPoseFromTF():
-    global transListener, leftCoilPose
-
-    now = rospy.Time.now()
-    # Change left coil position into world position
-    try:
-        transListener.waitForTransform('minefield', 'left_coil', now, rospy.Duration(3.0)) 
-        (trans,rot) = transListener.lookupTransform('minefield', 'left_coil', now)
-    except:
-        return
-
-    tr = transformations.concatenate_matrices(transformations.translation_matrix(trans), transformations.quaternion_matrix(rot))
-
-    leftCoilPose = PoseStamped()
-    leftCoilPose.pose = pose_msg_from_matrix(tr)
 
 def updateCoilPoseManually(referencePose):
     global transListener, leftCoilPose
@@ -110,10 +93,6 @@ def updateCoilPoseManually(referencePose):
 # Send mine position to HRATC Framework
 def sendMine():
     global transListener
-
-    ## You can get the pose of the metal detector from the TF
-    ## But this value may be wrong if the robot pose in TF (that is, base_link) is not accurate
-#    updateCoilPoseFromTF()
 
     ## It is better to compute the coil pose in relation to a corrected robot pose
     updateRobotPose()
