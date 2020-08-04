@@ -6,6 +6,7 @@ from numpy import deg2rad
 from curses import wrapper
 from threading import Thread
 from geometry_msgs.msg import Twist, Pose, PoseStamped, PoseWithCovariance, PoseWithCovarianceStamped, Transform
+from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan, Imu
 from metal_detector_msgs.msg._Coil import Coil
 from tf import transformations
@@ -21,6 +22,7 @@ transListener = None
 # Robot data
 robotTwist = Twist()
 robotPose = PoseStamped()
+robotOdom = Odometry()
 leftCoilPose = PoseStamped()
 
 #laser information
@@ -59,21 +61,13 @@ def pose_msg_from_matrix(transformation):
 
 def updateRobotPose():
     global robotPose
-
+    global robotOdom
     # This function does not get the true robot pose, but only the pose of 'base_link' in the TF
     # you should replace it by the robot pose resulting from a good localization process 
 
     robotPose = PoseStamped()
-    now = rospy.Time.now()
-    # Get left coil position in relation to robot
-    try:
-        transListener.waitForTransform('minefield', 'base_link', now, rospy.Duration(2.0))    
-        (trans,rot) = transListener.lookupTransform('minefield', 'base_link', now)
-    except:
-        return
-
-    tr2 = transformations.concatenate_matrices(transformations.translation_matrix(trans), transformations.quaternion_matrix(rot))
-    robotPose.pose = pose_msg_from_matrix(tr2)
+    robotPose.pose = robotOdom.pose.pose
+    
 
 def updateCoilPoseFromTF():
     global transListener, leftCoilPose
@@ -131,10 +125,6 @@ def sendMine():
 ######################### CALLBACKS ############################
 
 # Laser range-finder callback
-def receiveLaser(LaserNow):
-    global laserInfo 
-    laserInfo = LaserNow
-
 def receiveLaserHokuyo(LaserNow):
     global laserInfoHokuyo 
     laserInfoHokuyo = LaserNow
@@ -143,6 +133,11 @@ def receiveLaserHokuyo(LaserNow):
 def receiveImu(ImuNow):
     global imuInfo 
     imuInfo = ImuNow
+
+# Odom data callback
+def receiveOdom(OdomNow):
+    global robotOdom
+    robotOdom = OdomNow
 
 # Mine Detection Callback
 def receiveCoilSignal(actualCoil):
@@ -229,6 +224,7 @@ if __name__ == '__main__':
     transListener = tf.TransformListener()
 
     # Subscribing to all these topics to bring the robot or simulation to live data
+    rospy.Subscriber("/odometry/filtered", Odometry, receiveOdom)
     rospy.Subscriber("/coils", Coil, receiveCoilSignal, queue_size = 1)
     rospy.Subscriber("/imu/data", Imu, receiveImu)
     rospy.Subscriber("/scan_hokuyo_jackal", LaserScan, receiveLaserHokuyo)
