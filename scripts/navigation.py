@@ -29,6 +29,7 @@ leftCoilPose = PoseStamped()
 # Target pose
 targetPose = PoseStamped()
 distanceTolerance = 0.1
+mineSent = False
 
 #laser information
 laserInfo = LaserScan()
@@ -151,8 +152,10 @@ def showStats():
     std.addstr(10, 0, "left: {} \t {} \t {}".format(leftCoilPose.pose.position.x, leftCoilPose.pose.position.y, leftCoilPose.pose.position.z))
     std.addstr(11,0,"Target Position:")
     std.addstr(12, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
-    std.addstr(13,0,"Distance & Heading Target:")
-    std.addstr(14, 0, "{} \t {}".format(getDistanceToTarget(), getHeadingTarget()))
+    std.addstr(13,0,"Distance:")
+    std.addstr(14, 0, "{}".format(getDistanceToTarget()))
+    std.addstr(15,0,"Heading, Heading Target:")
+    std.addstr(16, 0, "{} \t {}".format(getYaw(), getHeadingTarget()))
 
     std.addstr(18, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
     std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
@@ -173,9 +176,9 @@ def KeyCheck(stdscr):
     std = stdscr
 
     #publishing topics
-    pubVel   = rospy.Publisher('/cmd_vel', Twist, 10)
+    pubVel   = rospy.Publisher('/cmd_vel', Twist)
 
-    setTargetPose(4, 2)
+    setTargetPose(-1.2, 3.1)
 
     # While 'Esc' is not pressed
     while k != chr(27):
@@ -185,15 +188,18 @@ def KeyCheck(stdscr):
         except:
             k = None
 
-        # Set mine position: IRREVERSIBLE ONCE SET
         if k == "x":
             sendMine()
 
         distance = getDistanceToTarget()
         headingTarget = getHeadingTarget()
+        headingDiff = getHeadingDiff()
 
-        if(headingDiff > 0.5 or headingDiff < -0.5):
+        if(headingDiff > 2):
             robotTwist.angular.z = -0.5
+            robotTwist.linear.x = 0
+        elif(headingDiff < -2):
+            robotTwist.angular.z = 0.5
             robotTwist.linear.x = 0
         else:
             robotTwist.angular.z = -deg2rad(0)
@@ -205,7 +211,6 @@ def KeyCheck(stdscr):
         pubVel.publish(robotTwist)
 
         showStats()
-        time.sleep(0.1)
 
     stdscr.keypad(False)
     rospy.signal_shutdown("Shutdown Competitor")
@@ -227,9 +232,31 @@ def getHeadingTarget():
     x1 = robotPose.pose.position.x
     x2 = targetPose.pose.position.x
 
-    headingDifference = atan2((y2-y1), (x2-x1))
+    headingTarget = atan2((y2-y1), (x2-x1))
 
-    return rad2deg(headingDifference)
+    return rad2deg(headingTarget)
+
+def getYaw():
+    global robotPose
+
+    quaternion = (
+        robotPose.pose.orientation.x,
+        robotPose.pose.orientation.y,
+        robotPose.pose.orientation.z,
+        robotPose.pose.orientation.w)
+
+    euler = tf.transformations.euler_from_quaternion(quaternion)
+    roll = euler[0]
+    pitch = euler[1]
+    yaw = euler[2]
+
+    return rad2deg(yaw)
+
+def getHeadingDiff():
+    
+    headingDiff = getYaw() - getHeadingTarget()
+    return headingDiff
+
 
 def getDistanceToTarget():
     global targetPose
