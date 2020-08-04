@@ -25,6 +25,9 @@ robotPose = PoseStamped()
 robotOdom = Odometry()
 leftCoilPose = PoseStamped()
 
+# Target pose
+targetPose = PoseStamped()
+
 #laser information
 laserInfo = LaserScan()
 laserInfoHokuyo = LaserScan()
@@ -57,7 +60,7 @@ def pose_msg_from_matrix(transformation):
     msg.orientation.w = q[3]
     return msg
 
-######################### GETTING POSES FROM TF ############################
+######################### GETTING POSES ############################
 
 def updateRobotPose():
     global robotPose
@@ -144,6 +147,8 @@ def showStats():
     std.addstr(8, 0, "{} \t {} \t {}".format(robotPose.pose.position.x, robotPose.pose.position.y, robotPose.pose.position.z))
     std.addstr(9,0,"Coil Position:")
     std.addstr(10, 0, "left: {} \t {} \t {}".format(leftCoilPose.pose.position.x, leftCoilPose.pose.position.y, leftCoilPose.pose.position.z))
+    std.addstr(11,0,"Target Position:")
+    std.addstr(12, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
 
     std.addstr(18, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
     std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
@@ -166,6 +171,8 @@ def KeyCheck(stdscr):
     #publishing topics
     pubVel   = rospy.Publisher('/cmd_vel', Twist, 10)
 
+    setTargetPose(2, 3)
+
     # While 'Esc' is not pressed
     while k != chr(27):
         # Check no key
@@ -179,7 +186,7 @@ def KeyCheck(stdscr):
             sendMine()
 
         robotTwist.angular.z = 0
-        robotTwist.linear.x = 5
+        robotTwist.linear.x = 1
         pubVel.publish(robotTwist)
 
         showStats()
@@ -187,6 +194,15 @@ def KeyCheck(stdscr):
 
     stdscr.keypad(False)
     rospy.signal_shutdown("Shutdown Competitor")
+
+# Navigation
+def setTargetPose(x, y):
+    global targetPose
+
+    targetPose.pose.position.x = x
+    targetPose.pose.position.y = y
+
+
 
 ######################### MAIN ############################
 
