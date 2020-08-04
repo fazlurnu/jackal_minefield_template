@@ -151,6 +151,8 @@ def showStats():
     std.addstr(10, 0, "left: {} \t {} \t {}".format(leftCoilPose.pose.position.x, leftCoilPose.pose.position.y, leftCoilPose.pose.position.z))
     std.addstr(11,0,"Target Position:")
     std.addstr(12, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
+    std.addstr(13,0,"Distance & HeadingDiff:")
+    std.addstr(14, 0, "{} \t {}".format(getDistanceToTarget(), getHeadingDifference()))
 
     std.addstr(18, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
     std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
@@ -173,7 +175,7 @@ def KeyCheck(stdscr):
     #publishing topics
     pubVel   = rospy.Publisher('/cmd_vel', Twist, 10)
 
-    setTargetPose(2, 2)
+    setTargetPose(4, 2)
 
     # While 'Esc' is not pressed
     while k != chr(27):
@@ -187,8 +189,19 @@ def KeyCheck(stdscr):
         if k == "x":
             sendMine()
 
-        robotTwist.angular.z = 0
-        robotTwist.linear.x = 1
+        distance = getDistanceToTarget()
+        headingDiff = getHeadingDifference()
+
+        if(headingDiff > 0.5 or headingDiff < -0.5):
+            robotTwist.angular.z = -3
+            robotTwist.linear.x = 0
+        else:
+            robotTwist.angular.z = -deg2rad(0)
+            if(distance > distanceTolerance):
+                robotTwist.linear.x = 1
+            else:
+                robotTwist.linear.x = 0
+        
         pubVel.publish(robotTwist)
 
         showStats()
