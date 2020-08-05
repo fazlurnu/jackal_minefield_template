@@ -119,18 +119,42 @@ def updateRightCoilPoseManually(referencePose):
     rightCoilPose = PoseStamped()
     rightCoilPose.pose = pose_msg_from_matrix(corrected_Mat)
 
+def getCenterOfCoilsPose(leftCoilPose, rightCoilPose):
+    centerOfCoils = PoseStamped()
+    minePose.pose.position.x = (leftCoilPose.pose.position.x + rightCoilPose.pose.position.x)/2
+    minePose.pose.position.y = (leftCoilPose.pose.position.y + rightCoilPose.pose.position.y)/2
+
+    return centerOfCoils
+
+def toMinefieldPose(inputPose):
+    outputPose = PoseStamped()
+    outputPose.pose.position.x = -inputPose.pose.position.y
+    outputPose.pose.position.y = inputPose.pose.position.x
+
+    return outputPose
+
 # Send mine position to HRATC Framework
 def sendMine():
     global transListener
 
+    minePose = PoseStamped()
+
     ## It is better to compute the coil pose in relation to a corrected robot pose
     updateRobotPose()
-    updateCoilPoseManually(robotPose.pose)
+    updateLeftCoilPoseManually(robotPose.pose)
+    updateRightCoilPoseManually(robotPose.pose)
 
     pubMine  = rospy.Publisher('/HRATC_FW/set_mine', PoseStamped)
 
+    if (coils.left_coil > coils.right_coil):
+        minePose = toMinefieldPose(leftCoilPose)
+    elif (coils.right_coil > coils.left_coil):
+        minePose = toMinefieldPose(rightCoilPose)
+    else:
+        centerOfCoils = getCenterOfCoilsPose(leftCoilPose, rightCoilPose)
+        minePose = toMinefieldPose(centerOfCoils)
     
-    pubMine.publish(leftCoilPose)
+    pubMine.publish(minePose)
 
 ######################### CALLBACKS ############################
 
@@ -155,7 +179,8 @@ def receiveCoilSignal(actualCoil):
     coils = actualCoil
 
     updateRobotPose() 
-    updateCoilPoseManually(robotPose.pose)  
+    updateLeftCoilPoseManually(robotPose.pose)
+    updateRightCoilPoseManually(robotPose.pose)
 
 ######################### CURSES STUFF ############################
 
@@ -175,15 +200,16 @@ def showStats():
     std.addstr(8, 0, "{} \t {} \t {}".format(robotPose.pose.position.x, robotPose.pose.position.y, robotPose.pose.position.z))
     std.addstr(9,0,"Coil Position:")
     std.addstr(10, 0, "left: {} \t {} \t {}".format(leftCoilPose.pose.position.x, leftCoilPose.pose.position.y, leftCoilPose.pose.position.z))
-    std.addstr(11,0,"Target Position:")
-    std.addstr(12, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
-    std.addstr(13,0,"Distance:")
-    std.addstr(14, 0, "{}".format(getDistanceToTarget()))
-    std.addstr(15,0,"Heading, Heading Target:")
-    std.addstr(16, 0, "{} \t {}".format(getYaw(), getHeadingTarget()))
+    std.addstr(11, 0, "right: {} \t {} \t {}".format(rightCoilPose.pose.position.x, rightCoilPose.pose.position.y, rightCoilPose.pose.position.z))
+    std.addstr(12,0,"Target Position:")
+    std.addstr(13, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
+    std.addstr(14,0,"Distance:")
+    std.addstr(15, 0, "{}".format(getDistanceToTarget()))
+    std.addstr(16,0,"Heading, Heading Target:")
+    std.addstr(17, 0, "{} \t {}".format(getYaw(), getHeadingTarget()))
 
     std.addstr(18, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
-    std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
+    #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
     if laserInfo.ranges != []:
         std.addstr(20, 0 , "Laser Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfo.ranges), min(laserInfo.ranges), max(laserInfo.ranges)))
     if laserInfoHokuyo.ranges != []:
@@ -203,7 +229,7 @@ def KeyCheck(stdscr):
     #publishing topics
     pubVel   = rospy.Publisher('/cmd_vel', Twist)
 
-    setTargetPose(3.1, 1.2)
+    setTargetPose(-3.1, 1.0)
 
     # While 'Esc' is not pressed
     while k != chr(27):
@@ -221,10 +247,10 @@ def KeyCheck(stdscr):
         headingDiff = getHeadingDiff()
 
         if(headingDiff > 0.5):
-            robotTwist.angular.z = -0.3
+            robotTwist.angular.z = -0.5
             robotTwist.linear.x = 0
         elif(headingDiff < -0.5):
-            robotTwist.angular.z = 0.3
+            robotTwist.angular.z = 0.5
             robotTwist.linear.x = 0
         else:
             robotTwist.angular.z = -deg2rad(0)
