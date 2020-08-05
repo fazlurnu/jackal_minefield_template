@@ -25,6 +25,7 @@ robotTwist = Twist()
 robotPose = PoseStamped()
 robotOdom = Odometry()
 leftCoilPose = PoseStamped()
+rightCoilPose = PoseStamped()
 
 # Target pose
 targetPose = PoseStamped()
@@ -74,7 +75,7 @@ def updateRobotPose():
     robotPose = PoseStamped()
     robotPose.pose = robotOdom.pose.pose
 
-def updateCoilPoseManually(referencePose):
+def updateLeftCoilPoseManually(referencePose):
     global transListener, leftCoilPose
 
     now = rospy.Time.now()
@@ -96,6 +97,28 @@ def updateCoilPoseManually(referencePose):
     leftCoilPose = PoseStamped()
     leftCoilPose.pose = pose_msg_from_matrix(corrected_Mat)
 
+def updateRightCoilPoseManually(referencePose):
+    global transListener, rightCoilPose
+
+    now = rospy.Time.now()
+    # Get left coil pose in relation to robot
+    try:
+        transListener.waitForTransform('base_link', 'right_coil', now, rospy.Duration(2.0))    
+        (trans,rot) = transListener.lookupTransform('base_link', 'right_coil', now)
+    except:
+        return
+
+    localCoil_Mat = transformations.concatenate_matrices(transformations.translation_matrix(trans), transformations.quaternion_matrix(rot))
+
+    # Use reference robot pose
+    robot_Mat = matrix_from_pose_msg(referencePose)
+
+    # Compute corrected coil pose
+    corrected_Mat = np.dot(robot_Mat, localCoil_Mat)
+
+    rightCoilPose = PoseStamped()
+    rightCoilPose.pose = pose_msg_from_matrix(corrected_Mat)
+
 # Send mine position to HRATC Framework
 def sendMine():
     global transListener
@@ -105,6 +128,8 @@ def sendMine():
     updateCoilPoseManually(robotPose.pose)
 
     pubMine  = rospy.Publisher('/HRATC_FW/set_mine', PoseStamped)
+
+    
     pubMine.publish(leftCoilPose)
 
 ######################### CALLBACKS ############################
@@ -178,7 +203,7 @@ def KeyCheck(stdscr):
     #publishing topics
     pubVel   = rospy.Publisher('/cmd_vel', Twist)
 
-    setTargetPose(-2.3, -3.8)
+    setTargetPose(3.1, 1.2)
 
     # While 'Esc' is not pressed
     while k != chr(27):
@@ -195,11 +220,11 @@ def KeyCheck(stdscr):
         headingTarget = getHeadingTarget()
         headingDiff = getHeadingDiff()
 
-        if(headingDiff > 2):
-            robotTwist.angular.z = -0.5
+        if(headingDiff > 0.5):
+            robotTwist.angular.z = -0.3
             robotTwist.linear.x = 0
-        elif(headingDiff < -2):
-            robotTwist.angular.z = 0.5
+        elif(headingDiff < -0.5):
+            robotTwist.angular.z = 0.3
             robotTwist.linear.x = 0
         else:
             robotTwist.angular.z = -deg2rad(0)
