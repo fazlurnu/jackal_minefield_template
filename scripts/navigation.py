@@ -178,7 +178,7 @@ def KeyCheck(stdscr):
     #publishing topics
     pubVel   = rospy.Publisher('/cmd_vel', Twist)
 
-    setTargetPose(-1.2, 3.1)
+    setTargetPose(-2.3, -3.8)
 
     # While 'Esc' is not pressed
     while k != chr(27):
