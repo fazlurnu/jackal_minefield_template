@@ -12,6 +12,10 @@ from sensor_msgs.msg import LaserScan, Imu
 from metal_detector_msgs.msg._Coil import Coil
 from tf import transformations
 
+# add self made libraries
+from grid_creator import create_waypoints
+from control import set_limit
+
 # read/write stuff on screen
 std = None
 
@@ -31,7 +35,9 @@ rightCoilPose = PoseStamped()
 targetPose = PoseStamped()
 distanceTolerance = 0.1
 mineSent = False
-targetList = [(0, 2), (2, 2), (2, 0), (0,0)]
+
+# Create waypoints
+targetList = create_waypoints((0,0), 3, 4, 0.5)
 targetCounter = 0
 
 #laser information
@@ -233,6 +239,11 @@ def KeyCheck(stdscr):
     #publishing topics
     pubVel   = rospy.Publisher('/cmd_vel', Twist)
 
+    #control param
+    linear_speed = 2
+    angular_speed_lower_limit = 0.2
+    angular_speed_upper_limit = 2
+
     # While 'Esc' is not pressed
     while k != chr(27):
         # Check no key
@@ -251,16 +262,18 @@ def KeyCheck(stdscr):
         headingTarget = getHeadingTarget()
         headingDiff = getHeadingDiff()
 
+        kp = -0.03
+
         if(headingDiff > 0.5):
-            robotTwist.angular.z = -0.5
+            robotTwist.angular.z = set_limit(kp*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
             robotTwist.linear.x = 0
         elif(headingDiff < -0.5):
-            robotTwist.angular.z = 0.5
+            robotTwist.angular.z = set_limit(kp*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
             robotTwist.linear.x = 0
         else:
             robotTwist.angular.z = -deg2rad(0)
             if(distance > distanceTolerance):
-                robotTwist.linear.x = 1
+                robotTwist.linear.x = linear_speed
             else:
                 targetCounter += 1
                 robotTwist.linear.x = 0
