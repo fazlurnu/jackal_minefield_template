@@ -38,12 +38,17 @@ headingTolerance = 0.3
 mineGuessSent = False
 
 # Create waypoints
-initial_coordinate = (0, -2)
-width = 3
+missionFinished = False
+initial_coordinate = (2, -2)
+width = 4.5
 height = 4
 spacing = 1
 targetList = create_waypoints(initial_coordinate, width, height, spacing)
 targetCounter = 0
+
+# Rounding the mine
+backward_speed = -2
+mine_clearance = 1.5
 
 #laser information
 laserInfo = LaserScan()
@@ -149,16 +154,17 @@ def toMinefieldPose(inputPose):
 # Send mine position to HRATC Framework
 def sendMine():
     global transListener
-    global mineGuessSent
 
     minePose = PoseStamped()
+
+    publisherCounter = 0
 
     ## It is better to compute the coil pose in relation to a corrected robot pose
     updateRobotPose()
     updateLeftCoilPoseManually(robotPose.pose)
     updateRightCoilPoseManually(robotPose.pose)
 
-    pubMine  = rospy.Publisher('/HRATC_FW/set_mine', PoseStamped)
+    pubMine  = rospy.Publisher('/HRATC_FW/set_mine', PoseStamped, queue_size=5)
 
     if (coils.left_coil > coils.right_coil):
         minePose = toMinefieldPose(leftCoilPose)
@@ -169,8 +175,14 @@ def sendMine():
         minePose = toMinefieldPose(centerOfCoils)
     
     pubMine.publish(minePose)
+    time.sleep(0.5)
 
 ######################### CALLBACKS ############################
+
+def receiveMineGuess(Guess):
+    global mineGuessSent
+
+    mineGuessSent = True
 
 # Laser range-finder callback
 def receiveLaserHokuyo(LaserNow):
@@ -239,7 +251,7 @@ def showStats():
 # Basic control
 def KeyCheck(stdscr):
     global targetList
-    global mineGuessSent
+    global missionFinished
 
     stdscr.keypad(True)
     stdscr.nodelay(True)
@@ -253,7 +265,7 @@ def KeyCheck(stdscr):
 
     #control param
     linear_speed_lower_limit = 0.5
-    linear_speed_upper_limit = 1.5
+    linear_speed_upper_limit = 1
     angular_speed_lower_limit = 0.15
     angular_speed_upper_limit = 2
 
@@ -261,7 +273,7 @@ def KeyCheck(stdscr):
     setTargetPose(currentTarget[0], currentTarget[1])
 
     # While 'Esc' is not pressed
-    while (k != chr(27) and len(targetList)>-1):
+    while (k != chr(27) and not(missionFinished)):
         # Check no key
         try:
             k = stdscr.getkey()
@@ -280,7 +292,6 @@ def KeyCheck(stdscr):
 
         if(coils.left_coil < 0.5 and coils.right_coil < 0.5):
             mineGuessSent = False
-            newWPsent = False
             if(headingDiff > headingTolerance):
                 robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
                 robotTwist.linear.x = 0
@@ -293,35 +304,35 @@ def KeyCheck(stdscr):
                     robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
                 else:
                     robotTwist.linear.x = 0
-                    currentTarget = targetList.pop(0)
-                    setTargetPose(currentTarget[0], currentTarget[1])
+
+                    if (len(targetList) > 0):
+                        currentTarget = targetList.pop(0)
+                        setTargetPose(currentTarget[0], currentTarget[1])
+                    else:
+                        missionFinished = True
                     
         else:
-            robotTwist.linear.x = -0.5
+            while(not(mineGuessSent)):
+                sendMine()
+
+            # set a new waypoint around the mine
+            WP1 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y)
+            WP2 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y + mine_clearance)
+            WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + mine_clearance)
+
+            # add waypoints to targetList
+            targetList.insert(0, currentTarget)
+            targetList.insert(0, WP3)
+            targetList.insert(0, WP2)
+            targetList.insert(0, WP1)
+
+            # update targetPose
+            currentTarget = targetList.pop(0)
+            setTargetPose(currentTarget[0], currentTarget[1])
+
+            robotTwist.linear.x = backward_speed
             robotTwist.angular.z = 0
 
-            #if(not(mineGuessSent)):
-            #    sendMine()
-            #else:
-                #add waypoint rounding the mine
-                #while(coils.left_coil > 0.5 or coils.right_coil > 0.5):
-                #    robotTwist.linear.x = -0.5
-                #    robotTwist.angular.z = 0
-
-                #if(not(newWPsent)):
-                #    WP1 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y)
-                #    WP2 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y + 0.5)
-                #    WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + 0.5)
-
-                    #targetList.append(currentTarget)
-                    #targetList.append(WP3)
-                    #targetList.append(WP2)
-                    #targetList.append(WP1)
-
-                    #currentTarget = targetList.pop(0)
-                    #setTargetPose(currentTarget[0], currentTarget[1])
-                    #newWPsent = True
-        
         pubVel.publish(robotTwist)
 
         showStats()
@@ -407,6 +418,7 @@ if __name__ == '__main__':
     rospy.Subscriber("/coils", Coil, receiveCoilSignal, queue_size = 1)
     rospy.Subscriber("/imu/data", Imu, receiveImu)
     rospy.Subscriber("/scan_hokuyo_jackal", LaserScan, receiveLaserHokuyo)
+    rospy.Subscriber("/HRATC_FW/set_mine", PoseStamped, receiveMineGuess)
 
     #Starting curses and ROS
     Thread(target = StartControl).start()
