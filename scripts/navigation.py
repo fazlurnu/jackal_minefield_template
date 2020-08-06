@@ -355,9 +355,9 @@ def KeyCheck(stdscr):
                 sendMine()
                 sendingMineGuess = True
 
-                WP1 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y)
-                WP2 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y + 0.5)
-                WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + 0.5)
+                WP1 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y)
+                WP2 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y + mine_clearance)
+                WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + mine_clearance)
 
                 targetList.insert(0, currentTarget)
                 targetList.insert(0,WP3)
