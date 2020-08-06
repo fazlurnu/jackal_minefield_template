@@ -31,6 +31,8 @@ rightCoilPose = PoseStamped()
 targetPose = PoseStamped()
 distanceTolerance = 0.1
 mineSent = False
+targetList = [(0, 2), (2, 2), (2, 0), (0,0)]
+targetCounter = 0
 
 #laser information
 laserInfo = LaserScan()
@@ -219,17 +221,17 @@ def showStats():
 
 # Basic control
 def KeyCheck(stdscr):
+    global targetCounter
+
     stdscr.keypad(True)
     stdscr.nodelay(True)
-
+    
     k = None
     global std
     std = stdscr
 
     #publishing topics
     pubVel   = rospy.Publisher('/cmd_vel', Twist)
-
-    setTargetPose(-3.1, 1.0)
 
     # While 'Esc' is not pressed
     while k != chr(27):
@@ -241,6 +243,9 @@ def KeyCheck(stdscr):
 
         if k == "x":
             sendMine()
+
+        currentTarget = targetList[targetCounter]
+        setTargetPose(currentTarget[0], currentTarget[1])
 
         distance = getDistanceToTarget()
         headingTarget = getHeadingTarget()
@@ -257,6 +262,7 @@ def KeyCheck(stdscr):
             if(distance > distanceTolerance):
                 robotTwist.linear.x = 1
             else:
+                targetCounter += 1
                 robotTwist.linear.x = 0
         
         pubVel.publish(robotTwist)
