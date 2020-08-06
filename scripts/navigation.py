@@ -9,6 +9,7 @@ from threading import Thread
 from geometry_msgs.msg import Twist, Pose, PoseStamped, PoseWithCovariance, PoseWithCovarianceStamped, Transform
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan, Imu
+from visualization_msgs.msg import MarkerArray
 from metal_detector_msgs.msg._Coil import Coil
 from tf import transformations
 
@@ -175,12 +176,14 @@ def sendMine():
         minePose = toMinefieldPose(centerOfCoils)
     
     pubMine.publish(minePose)
-    time.sleep(0.5)
 
 ######################### CALLBACKS ############################
 
-def receiveMineGuess(Guess):
+def receiveMineGuess(PoseGuess):
     global mineGuessSent
+
+    minePose = PoseStamped()
+    minePose = PoseGuess
 
     mineGuessSent = True
 
@@ -240,6 +243,8 @@ def showStats():
         targetString += str(targetList[i]) + ", "
 
     std.addstr(19, 0, targetString)
+
+    std.addstr(20, 0, "Mine Guess Sent: {}".format(mineGuessSent))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
     #if laserInfo.ranges != []:
     #    std.addstr(20, 0 , "Laser Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfo.ranges), min(laserInfo.ranges), max(laserInfo.ranges)))
@@ -265,12 +270,14 @@ def KeyCheck(stdscr):
 
     #control param
     linear_speed_lower_limit = 0.5
-    linear_speed_upper_limit = 1
+    linear_speed_upper_limit = 0.8
     angular_speed_lower_limit = 0.15
     angular_speed_upper_limit = 2
 
     currentTarget = targetList.pop(0)
     setTargetPose(currentTarget[0], currentTarget[1])
+
+    counter = 0
 
     # While 'Esc' is not pressed
     while (k != chr(27) and not(missionFinished)):
@@ -290,8 +297,7 @@ def KeyCheck(stdscr):
         kp_angular = -0.03
         kp_linear = 0.8
 
-        if(coils.left_coil < 0.5 and coils.right_coil < 0.5):
-            mineGuessSent = False
+        if(coils.left_coil < 0.42 and coils.right_coil < 0.42):
             if(headingDiff > headingTolerance):
                 robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
                 robotTwist.linear.x = 0
@@ -312,26 +318,12 @@ def KeyCheck(stdscr):
                         missionFinished = True
                     
         else:
-            while(not(mineGuessSent)):
+            # if mineGuess is not received, keep sending it
+            if(not(mineGuessSent)):
+                robotTwist.linear.x = 0
                 sendMine()
-
-            # set a new waypoint around the mine
-            WP1 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y)
-            WP2 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y + mine_clearance)
-            WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + mine_clearance)
-
-            # add waypoints to targetList
-            targetList.insert(0, currentTarget)
-            targetList.insert(0, WP3)
-            targetList.insert(0, WP2)
-            targetList.insert(0, WP1)
-
-            # update targetPose
-            currentTarget = targetList.pop(0)
-            setTargetPose(currentTarget[0], currentTarget[1])
-
-            robotTwist.linear.x = backward_speed
-            robotTwist.angular.z = 0
+            else:
+                missionFinished = True
 
         pubVel.publish(robotTwist)
 
@@ -418,7 +410,7 @@ if __name__ == '__main__':
     rospy.Subscriber("/coils", Coil, receiveCoilSignal, queue_size = 1)
     rospy.Subscriber("/imu/data", Imu, receiveImu)
     rospy.Subscriber("/scan_hokuyo_jackal", LaserScan, receiveLaserHokuyo)
-    rospy.Subscriber("/HRATC_FW/set_mine", PoseStamped, receiveMineGuess)
+    rospy.Subscriber("/HRATC_FW/set_mine", PoseStamped, receiveMineGuess, queue_size = 5)
 
     #Starting curses and ROS
     Thread(target = StartControl).start()
