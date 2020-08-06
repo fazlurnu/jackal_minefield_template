@@ -31,6 +31,7 @@ robotPose = PoseStamped()
 robotOdom = Odometry()
 leftCoilPose = PoseStamped()
 rightCoilPose = PoseStamped()
+sendingMineGuess = False
 
 # Target pose
 targetPose = PoseStamped()
@@ -181,6 +182,8 @@ def sendMine():
     
     pubMine.publish(minePose)
 
+    time.sleep(0.5)
+
 ######################### CALLBACKS ############################
 
 def receiveMineGuess(PoseGuess):
@@ -269,7 +272,7 @@ def showStats():
 
     std.addstr(19, 0, targetString)
 
-    std.addstr(20, 0, "Mine Guess Sent: {}".format(mineGuessSent))
+    std.addstr(20, 0, "Sending Mine Guess: {} \t Mine Guess Sent: {}".format(sendingMineGuess, mineGuessSent))
     std.addstr(21, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
     #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
@@ -284,6 +287,7 @@ def showStats():
 def KeyCheck(stdscr):
     global targetList
     global missionFinished
+    global sendingMineGuess
 
     stdscr.keypad(True)
     stdscr.nodelay(True)
@@ -349,26 +353,25 @@ def KeyCheck(stdscr):
             if(not(mineGuessSent)):
                 robotTwist.linear.x = 0
                 sendMine()
+                sendingMineGuess = True
 
-            else:
-                
-                # move backward till mine not detected
-                while(coils.left_coil > 0.5 or coils.right_coil > 0.5):
-                    robotTwist.linear.x = -0.5
-                    robotTwist.angular.z = 0
-
-                # add waypoint rounding the mine
                 WP1 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y)
                 WP2 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y + 0.5)
                 WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + 0.5)
 
                 targetList.insert(0, currentTarget)
-                targetList.insert(0, WP3)
+                targetList.insert(0,WP3)
                 targetList.insert(0, WP2)
                 targetList.insert(0, WP1)
-
+                
                 currentTarget = targetList.pop(0)
                 setTargetPose(currentTarget[0], currentTarget[1])
+                
+            else:
+                sendingMineGuess = False
+
+                if(coils.left_coil > 0.42 or coils.right_coil > 0.42):
+                    robotTwist.linear.x = -1
 
         pubVel.publish(robotTwist)
 
