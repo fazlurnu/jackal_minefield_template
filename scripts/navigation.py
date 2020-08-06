@@ -51,6 +51,12 @@ targetCounter = 0
 backward_speed = -2
 mine_clearance = 1.5
 
+# Markers
+properMineMarkers = MarkerArray()
+wrongMineMarkers = MarkerArray()
+properMineMarkersSizePrev = 0
+wrongMineMarkersSizePrev = 0
+
 #laser information
 laserInfo = LaserScan()
 laserInfoHokuyo = LaserScan()
@@ -155,9 +161,8 @@ def toMinefieldPose(inputPose):
 # Send mine position to HRATC Framework
 def sendMine():
     global transListener
-
+    
     minePose = PoseStamped()
-
     publisherCounter = 0
 
     ## It is better to compute the coil pose in relation to a corrected robot pose
@@ -165,7 +170,7 @@ def sendMine():
     updateLeftCoilPoseManually(robotPose.pose)
     updateRightCoilPoseManually(robotPose.pose)
 
-    pubMine  = rospy.Publisher('/HRATC_FW/set_mine', PoseStamped, queue_size=5)
+    pubMine  = rospy.Publisher('/HRATC_FW/set_mine', PoseStamped, queue_size=1)
 
     if (coils.left_coil > coils.right_coil):
         minePose = toMinefieldPose(leftCoilPose)
@@ -175,17 +180,16 @@ def sendMine():
         centerOfCoils = getCenterOfCoilsPose(leftCoilPose, rightCoilPose)
         minePose = toMinefieldPose(centerOfCoils)
     
-    pubMine.publish(minePose)
+    while(publisherCounter<5):
+        publisherCounter += 1
+        pubMine.publish(minePose)
 
 ######################### CALLBACKS ############################
 
 def receiveMineGuess(PoseGuess):
-    global mineGuessSent
 
     minePose = PoseStamped()
     minePose = PoseGuess
-
-    mineGuessSent = True
 
 # Laser range-finder callback
 def receiveLaserHokuyo(LaserNow):
@@ -211,6 +215,31 @@ def receiveCoilSignal(actualCoil):
     updateLeftCoilPoseManually(robotPose.pose)
     updateRightCoilPoseManually(robotPose.pose)
 
+def receiveWrongMineMarker(wrongMarkersInput):
+    global wrongMineMarkers
+    global wrongMineMarkersSizePrev
+    global mineGuessSent
+
+    wrongMineMarkers = wrongMarkersInput
+    wrongMineMarkersSizeNow = len(wrongMineMarkers.markers)
+
+    if (wrongMineMarkersSizePrev != wrongMineMarkersSizeNow):
+        wrongMineMarkersSizePrev = wrongMineMarkersSizeNow
+        mineGuessSent = True
+
+
+def receiveProperMineMarker(properMarkersInput):
+    global properMineMarkers
+    global properMineMarkersSizePrev
+    global mineGuessSent
+    
+    properMineMarkers = properMarkersInput
+    properMineMarkersSizeNow = len(properMineMarkers.markers)
+
+    if (properMineMarkersSizePrev != properMineMarkersSizeNow):
+        properMineMarkersSizePrev = properMineMarkersSizeNow
+        mineGuessSent = True
+
 ######################### CURSES STUFF ############################
 
 # Printing data on screen
@@ -235,7 +264,6 @@ def showStats():
     std.addstr(15, 0, "{}".format(getDistanceToTarget()))
     std.addstr(16,0,"Heading, Heading Target:")
     std.addstr(17, 0, "{} \t {}".format(getYaw(), getHeadingTarget()))
-
     std.addstr(18, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
 
     targetString = "Next Target: "
@@ -245,6 +273,8 @@ def showStats():
     std.addstr(19, 0, targetString)
 
     std.addstr(20, 0, "Mine Guess Sent: {}".format(mineGuessSent))
+    std.addstr(21, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
+    #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
     #if laserInfo.ranges != []:
     #    std.addstr(20, 0 , "Laser Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfo.ranges), min(laserInfo.ranges), max(laserInfo.ranges)))
@@ -410,7 +440,9 @@ if __name__ == '__main__':
     rospy.Subscriber("/coils", Coil, receiveCoilSignal, queue_size = 1)
     rospy.Subscriber("/imu/data", Imu, receiveImu)
     rospy.Subscriber("/scan_hokuyo_jackal", LaserScan, receiveLaserHokuyo)
-    rospy.Subscriber("/HRATC_FW/set_mine", PoseStamped, receiveMineGuess, queue_size = 5)
+    rospy.Subscriber("/HRATC_FW/set_mine", PoseStamped, receiveMineGuess, queue_size = 1)
+    rospy.Subscriber("/judge/wronglyDetectedMines_marker", MarkerArray, receiveWrongMineMarker, queue_size = 1)
+    rospy.Subscriber("/judge/properlyDetectedMines_marker", MarkerArray, receiveProperMineMarker, queue_size = 1)
 
     #Starting curses and ROS
     Thread(target = StartControl).start()
