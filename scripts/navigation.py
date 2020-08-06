@@ -241,7 +241,8 @@ def KeyCheck(stdscr):
     pubVel   = rospy.Publisher('/cmd_vel', Twist)
 
     #control param
-    linear_speed = 2
+    linear_speed_lower_limit = 0.5
+    linear_speed_upper_limit = 1.5
     angular_speed_lower_limit = 0.2
     angular_speed_upper_limit = 2
 
@@ -263,18 +264,19 @@ def KeyCheck(stdscr):
         headingTarget = getHeadingTarget()
         headingDiff = getHeadingDiff()
 
-        kp = -0.03
+        kp_angular = -0.03
+        kp_linear = 0.8
 
         if(headingDiff > headingTolerance):
-            robotTwist.angular.z = set_limit(kp*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
+            robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
             robotTwist.linear.x = 0
         elif(headingDiff < -headingTolerance):
-            robotTwist.angular.z = set_limit(kp*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
+            robotTwist.angular.z = set_limit(kp_angular*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
             robotTwist.linear.x = 0
         else:
             robotTwist.angular.z = -deg2rad(0)
             if(distance > distanceTolerance):
-                robotTwist.linear.x = linear_speed
+                robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
             else:
                 targetCounter += 1
                 robotTwist.linear.x = 0
