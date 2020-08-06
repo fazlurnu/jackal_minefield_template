@@ -274,7 +274,7 @@ def KeyCheck(stdscr):
             robotTwist.angular.z = set_limit(kp_angular*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
             robotTwist.linear.x = 0
         else:
-            robotTwist.angular.z = -deg2rad(0)
+            robotTwist.angular.z = kp_angular*headingDiff
             if(distance > distanceTolerance):
                 robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
             else:

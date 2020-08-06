@@ -24,9 +24,9 @@ def create_waypoints(init_coordinate, width, height, spacing):
 
 def main():
     init_coordinate = (0,0)
-    width = 5
-    height = 5
-    spacing = 1
+    width = 4
+    height = 4
+    spacing = 0.5
 
     waypoints = create_waypoints(init_coordinate, width, height, spacing)
     print(waypoints)
