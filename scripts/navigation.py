@@ -35,7 +35,7 @@ rightCoilPose = PoseStamped()
 targetPose = PoseStamped()
 distanceTolerance = 0.1
 headingTolerance = 0.3
-mineSent = False
+mineGuessSent = False
 
 # Create waypoints
 initial_coordinate = (0, -2)
@@ -134,8 +134,8 @@ def updateRightCoilPoseManually(referencePose):
 
 def getCenterOfCoilsPose(leftCoilPose, rightCoilPose):
     centerOfCoils = PoseStamped()
-    minePose.pose.position.x = (leftCoilPose.pose.position.x + rightCoilPose.pose.position.x)/2
-    minePose.pose.position.y = (leftCoilPose.pose.position.y + rightCoilPose.pose.position.y)/2
+    centerOfCoils.pose.position.x = (leftCoilPose.pose.position.x + rightCoilPose.pose.position.x)/2
+    centerOfCoils.pose.position.y = (leftCoilPose.pose.position.y + rightCoilPose.pose.position.y)/2
 
     return centerOfCoils
 
@@ -149,6 +149,7 @@ def toMinefieldPose(inputPose):
 # Send mine position to HRATC Framework
 def sendMine():
     global transListener
+    global mineGuessSent
 
     minePose = PoseStamped()
 
@@ -199,7 +200,6 @@ def receiveCoilSignal(actualCoil):
 
 # Printing data on screen
 def showStats():
-
     if std == None:
         return
 
@@ -222,17 +222,24 @@ def showStats():
     std.addstr(17, 0, "{} \t {}".format(getYaw(), getHeadingTarget()))
 
     std.addstr(18, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
+
+    targetString = "Next Target: "
+    for i in range (len(targetList)):
+        targetString += str(targetList[i]) + ", "
+
+    std.addstr(19, 0, targetString)
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
-    if laserInfo.ranges != []:
-        std.addstr(20, 0 , "Laser Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfo.ranges), min(laserInfo.ranges), max(laserInfo.ranges)))
-    if laserInfoHokuyo.ranges != []:
-        std.addstr(21, 0 , "Laser Hokuyo Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfoHokuyo.ranges), min(laserInfoHokuyo.ranges), max(laserInfoHokuyo.ranges)))
+    #if laserInfo.ranges != []:
+    #    std.addstr(20, 0 , "Laser Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfo.ranges), min(laserInfo.ranges), max(laserInfo.ranges)))
+    #if laserInfoHokuyo.ranges != []:
+    #    std.addstr(21, 0 , "Laser Hokuyo Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfoHokuyo.ranges), min(laserInfoHokuyo.ranges), max(laserInfoHokuyo.ranges)))
 
     std.refresh()
 
 # Basic control
 def KeyCheck(stdscr):
-    global targetCounter
+    global targetList
+    global mineGuessSent
 
     stdscr.keypad(True)
     stdscr.nodelay(True)
@@ -250,8 +257,11 @@ def KeyCheck(stdscr):
     angular_speed_lower_limit = 0.15
     angular_speed_upper_limit = 2
 
+    currentTarget = targetList.pop(0)
+    setTargetPose(currentTarget[0], currentTarget[1])
+
     # While 'Esc' is not pressed
-    while (k != chr(27) and targetCounter<len(targetList)):
+    while (k != chr(27) and len(targetList)>-1):
         # Check no key
         try:
             k = stdscr.getkey()
@@ -261,9 +271,6 @@ def KeyCheck(stdscr):
         if k == "x":
             sendMine()
 
-        currentTarget = targetList[targetCounter]
-        setTargetPose(currentTarget[0], currentTarget[1])
-
         distance = getDistanceToTarget()
         headingTarget = getHeadingTarget()
         headingDiff = getHeadingDiff()
@@ -272,6 +279,8 @@ def KeyCheck(stdscr):
         kp_linear = 0.8
 
         if(coils.left_coil < 0.5 and coils.right_coil < 0.5):
+            mineGuessSent = False
+            newWPsent = False
             if(headingDiff > headingTolerance):
                 robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
                 robotTwist.linear.x = 0
@@ -283,12 +292,35 @@ def KeyCheck(stdscr):
                 if(distance > distanceTolerance):
                     robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
                 else:
-                    targetCounter += 1
                     robotTwist.linear.x = 0
+                    currentTarget = targetList.pop(0)
+                    setTargetPose(currentTarget[0], currentTarget[1])
+                    
         else:
-            sendMine()
-            robotTwist.linear.x = 0
+            robotTwist.linear.x = -0.5
             robotTwist.angular.z = 0
+
+            #if(not(mineGuessSent)):
+            #    sendMine()
+            #else:
+                #add waypoint rounding the mine
+                #while(coils.left_coil > 0.5 or coils.right_coil > 0.5):
+                #    robotTwist.linear.x = -0.5
+                #    robotTwist.angular.z = 0
+
+                #if(not(newWPsent)):
+                #    WP1 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y)
+                #    WP2 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y + 0.5)
+                #    WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + 0.5)
+
+                    #targetList.append(currentTarget)
+                    #targetList.append(WP3)
+                    #targetList.append(WP2)
+                    #targetList.append(WP1)
+
+                    #currentTarget = targetList.pop(0)
+                    #setTargetPose(currentTarget[0], currentTarget[1])
+                    #newWPsent = True
         
         pubVel.publish(robotTwist)
 
