@@ -163,7 +163,6 @@ def sendMine():
     global transListener
     
     minePose = PoseStamped()
-    publisherCounter = 0
 
     ## It is better to compute the coil pose in relation to a corrected robot pose
     updateRobotPose()
@@ -180,9 +179,7 @@ def sendMine():
         centerOfCoils = getCenterOfCoilsPose(leftCoilPose, rightCoilPose)
         minePose = toMinefieldPose(centerOfCoils)
     
-    while(publisherCounter<5):
-        publisherCounter += 1
-        pubMine.publish(minePose)
+    pubMine.publish(minePose)
 
 ######################### CALLBACKS ############################
 
@@ -352,8 +349,25 @@ def KeyCheck(stdscr):
             if(not(mineGuessSent)):
                 robotTwist.linear.x = 0
                 sendMine()
+
             else:
-                missionFinished = True
+                # move backward till mine not detected
+                while(coils.left_coil > 0.5 or coils.right_coil > 0.5):
+                    robotTwist.linear.x = -0.5
+                    robotTwist.angular.z = 0
+
+                # add waypoint rounding the mine
+                WP1 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y)
+                WP2 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y + 0.5)
+                WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + 0.5)
+
+                targetList.append(currentTarget)
+                targetList.append(WP3)
+                targetList.append(WP2)
+                targetList.append(WP1)
+
+                currentTarget = targetList.pop(0)
+                setTargetPose(currentTarget[0], currentTarget[1])
 
         pubVel.publish(robotTwist)
 
