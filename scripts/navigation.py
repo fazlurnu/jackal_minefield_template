@@ -351,6 +351,7 @@ def KeyCheck(stdscr):
                 sendMine()
 
             else:
+                
                 # move backward till mine not detected
                 while(coils.left_coil > 0.5 or coils.right_coil > 0.5):
                     robotTwist.linear.x = -0.5
