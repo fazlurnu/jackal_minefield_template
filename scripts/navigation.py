@@ -38,7 +38,11 @@ headingTolerance = 0.3
 mineSent = False
 
 # Create waypoints
-targetList = create_waypoints((0,0), 3, 4, 0.5)
+initial_coordinate = (0, -2)
+width = 3
+height = 4
+spacing = 1
+targetList = create_waypoints(initial_coordinate, width, height, spacing)
 targetCounter = 0
 
 #laser information
@@ -243,11 +247,11 @@ def KeyCheck(stdscr):
     #control param
     linear_speed_lower_limit = 0.5
     linear_speed_upper_limit = 1.5
-    angular_speed_lower_limit = 0.2
+    angular_speed_lower_limit = 0.15
     angular_speed_upper_limit = 2
 
     # While 'Esc' is not pressed
-    while k != chr(27):
+    while (k != chr(27) and targetCounter<len(targetList)):
         # Check no key
         try:
             k = stdscr.getkey()
@@ -267,19 +271,24 @@ def KeyCheck(stdscr):
         kp_angular = -0.03
         kp_linear = 0.8
 
-        if(headingDiff > headingTolerance):
-            robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
-            robotTwist.linear.x = 0
-        elif(headingDiff < -headingTolerance):
-            robotTwist.angular.z = set_limit(kp_angular*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
-            robotTwist.linear.x = 0
-        else:
-            robotTwist.angular.z = kp_angular*headingDiff
-            if(distance > distanceTolerance):
-                robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
-            else:
-                targetCounter += 1
+        if(coils.left_coil < 0.5 and coils.right_coil < 0.5):
+            if(headingDiff > headingTolerance):
+                robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
                 robotTwist.linear.x = 0
+            elif(headingDiff < -headingTolerance):
+                robotTwist.angular.z = set_limit(kp_angular*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
+                robotTwist.linear.x = 0
+            else:
+                robotTwist.angular.z = kp_angular*headingDiff
+                if(distance > distanceTolerance):
+                    robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
+                else:
+                    targetCounter += 1
+                    robotTwist.linear.x = 0
+        else:
+            sendMine()
+            robotTwist.linear.x = 0
+            robotTwist.angular.z = 0
         
         pubVel.publish(robotTwist)
 
