@@ -34,6 +34,7 @@ rightCoilPose = PoseStamped()
 # Target pose
 targetPose = PoseStamped()
 distanceTolerance = 0.1
+headingTolerance = 0.3
 mineSent = False
 
 # Create waypoints
@@ -264,10 +265,10 @@ def KeyCheck(stdscr):
 
         kp = -0.03
 
-        if(headingDiff > 0.5):
+        if(headingDiff > headingTolerance):
             robotTwist.angular.z = set_limit(kp*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
             robotTwist.linear.x = 0
-        elif(headingDiff < -0.5):
+        elif(headingDiff < -headingTolerance):
             robotTwist.angular.z = set_limit(kp*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
             robotTwist.linear.x = 0
         else:
