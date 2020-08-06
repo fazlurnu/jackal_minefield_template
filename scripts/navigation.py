@@ -362,10 +362,10 @@ def KeyCheck(stdscr):
                 WP2 = (robotPose.pose.position.x + 0.5, robotPose.pose.position.y + 0.5)
                 WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + 0.5)
 
-                targetList.append(currentTarget)
-                targetList.append(WP3)
-                targetList.append(WP2)
-                targetList.append(WP1)
+                targetList.insert(0, currentTarget)
+                targetList.insert(0, WP3)
+                targetList.insert(0, WP2)
+                targetList.insert(0, WP1)
 
                 currentTarget = targetList.pop(0)
                 setTargetPose(currentTarget[0], currentTarget[1])
