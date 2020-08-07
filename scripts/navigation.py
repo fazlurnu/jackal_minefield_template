@@ -38,6 +38,7 @@ targetPose = PoseStamped()
 distanceTolerance = 0.1
 headingTolerance = 0.3
 mineGuessSent = False
+newWaypointsSent = False
 
 # Create waypoints
 missionFinished = False
@@ -49,7 +50,7 @@ targetList = create_waypoints(initial_coordinate, width, height, spacing)
 targetCounter = 0
 
 # Rounding the mine
-backward_speed = -2
+backward_speed = -1
 mine_clearance = 1.5
 
 # Markers
@@ -67,6 +68,7 @@ imuInfo = Imu()
 
 #Metal detector data
 coils = Coil()
+coilValueMineDetected = 0.42
 
 ######################### AUXILIARY FUNCTIONS ############################
 
@@ -240,6 +242,22 @@ def receiveProperMineMarker(properMarkersInput):
         properMineMarkersSizePrev = properMineMarkersSizeNow
         mineGuessSent = True
 
+def addWaypointsAroundTheMine():
+    global targetList
+    global newWaypointsSent
+
+    currentTarget = (targetPose.pose.position.x, targetPose.pose.position.y)
+    WP1 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y)
+    WP2 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y + mine_clearance)
+    WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + mine_clearance)
+
+    targetList.insert(0, currentTarget)
+    targetList.insert(0,WP3)
+    targetList.insert(0, WP2)
+    targetList.insert(0, WP1)
+
+    newWaypointsSent = True
+
 ######################### CURSES STUFF ############################
 
 # Printing data on screen
@@ -253,27 +271,27 @@ def showStats():
     std.addstr(2, 0, "{} \t {} \t {}".format(robotTwist.linear.x,robotTwist.linear.y,robotTwist.linear.z))
     std.addstr(4,0,"Angular:")
     std.addstr(5, 0, "{} \t {} \t {}".format(robotTwist.angular.x,robotTwist.angular.y,robotTwist.angular.z))
-    std.addstr(7,0,"Robot Position:")
-    std.addstr(8, 0, "{} \t {} \t {}".format(robotPose.pose.position.x, robotPose.pose.position.y, robotPose.pose.position.z))
-    std.addstr(9,0,"Coil Position:")
-    std.addstr(10, 0, "left: {} \t {} \t {}".format(leftCoilPose.pose.position.x, leftCoilPose.pose.position.y, leftCoilPose.pose.position.z))
-    std.addstr(11, 0, "right: {} \t {} \t {}".format(rightCoilPose.pose.position.x, rightCoilPose.pose.position.y, rightCoilPose.pose.position.z))
-    std.addstr(12,0,"Target Position:")
-    std.addstr(13, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
-    std.addstr(14,0,"Distance:")
-    std.addstr(15, 0, "{}".format(getDistanceToTarget()))
-    std.addstr(16,0,"Heading, Heading Target:")
-    std.addstr(17, 0, "{} \t {}".format(getYaw(), getHeadingTarget()))
-    std.addstr(18, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
+    std.addstr(6,0,"Robot Position:")
+    std.addstr(7, 0, "{} \t {} \t {}".format(robotPose.pose.position.x, robotPose.pose.position.y, robotPose.pose.position.z))
+    std.addstr(8,0,"Coil Position:")
+    std.addstr(9, 0, "left: {} \t {} \t {}".format(leftCoilPose.pose.position.x, leftCoilPose.pose.position.y, leftCoilPose.pose.position.z))
+    std.addstr(10, 0, "right: {} \t {} \t {}".format(rightCoilPose.pose.position.x, rightCoilPose.pose.position.y, rightCoilPose.pose.position.z))
+    std.addstr(11,0,"Target Position:")
+    std.addstr(12, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
+    std.addstr(13,0,"Distance:")
+    std.addstr(14, 0, "{}".format(getDistanceToTarget()))
+    std.addstr(15,0,"Heading, Heading Target:")
+    std.addstr(16, 0, "{} \t {}".format(getYaw(), getHeadingTarget()))
+    std.addstr(17, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
 
     targetString = "Next Target: "
     for i in range (len(targetList)):
         targetString += str(targetList[i]) + ", "
 
-    std.addstr(19, 0, targetString)
+    std.addstr(18, 0, targetString)
 
-    std.addstr(20, 0, "Sending Mine Guess: {} \t Mine Guess Sent: {}".format(sendingMineGuess, mineGuessSent))
-    std.addstr(21, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
+    std.addstr(21, 0, "Sending Mine Guess: {}, Mine Guess Sent: {}, NewWPSent: {}".format(sendingMineGuess, mineGuessSent, newWaypointsSent))
+    std.addstr(22, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
     #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
     #if laserInfo.ranges != []:
@@ -288,6 +306,8 @@ def KeyCheck(stdscr):
     global targetList
     global missionFinished
     global sendingMineGuess
+    global mineGuessSent
+    global newWaypointsSent
 
     stdscr.keypad(True)
     stdscr.nodelay(True)
@@ -328,7 +348,12 @@ def KeyCheck(stdscr):
         kp_angular = -0.03
         kp_linear = 0.8
 
-        if(coils.left_coil < 0.42 and coils.right_coil < 0.42):
+        if(coils.left_coil < coilValueMineDetected and coils.right_coil < coilValueMineDetected):
+            
+            # reset param
+            mineGuessSent = False
+            newWaypointsSent = False
+
             if(headingDiff > headingTolerance):
                 robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
                 robotTwist.linear.x = 0
@@ -355,23 +380,17 @@ def KeyCheck(stdscr):
                 sendMine()
                 sendingMineGuess = True
 
-                WP1 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y)
-                WP2 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y + mine_clearance)
-                WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + mine_clearance)
-
-                targetList.insert(0, currentTarget)
-                targetList.insert(0,WP3)
-                targetList.insert(0, WP2)
-                targetList.insert(0, WP1)
+                if (not(newWaypointsSent)):
+                    addWaypointsAroundTheMine()
                 
-                currentTarget = targetList.pop(0)
-                setTargetPose(currentTarget[0], currentTarget[1])
+                    currentTarget = targetList.pop(0)
+                    setTargetPose(currentTarget[0], currentTarget[1])
                 
             else:
                 sendingMineGuess = False
 
-                if(coils.left_coil > 0.42 or coils.right_coil > 0.42):
-                    robotTwist.linear.x = -1
+                if(coils.left_coil > coilValueMineDetected or coils.right_coil > coilValueMineDetected):
+                    robotTwist.linear.x = backward_speed
 
         pubVel.publish(robotTwist)
 
