@@ -46,7 +46,7 @@ init_coordinate = (0.5,-2)
 width = 5
 height = 3
 spacing = 0.5
-targetList = create_waypoints(initial_coordinate, width, height, spacing)
+targetList = create_waypoints(init_coordinate, width, height, spacing)
 
 # Rounding the mine
 backward_speed = -1
