@@ -42,16 +42,15 @@ newWaypointsSent = False
 
 # Create waypoints
 missionFinished = False
-initial_coordinate = (2, -2)
-width = 4.5
-height = 4
-spacing = 1
+init_coordinate = (0.5,-2)
+width = 5
+height = 3
+spacing = 0.5
 targetList = create_waypoints(initial_coordinate, width, height, spacing)
-targetCounter = 0
 
 # Rounding the mine
 backward_speed = -1
-mine_clearance = 1.5
+mine_clearance = 1.25
 
 # Markers
 properMineMarkers = MarkerArray()
