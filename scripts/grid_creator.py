@@ -1,6 +1,3 @@
-def coordinate_is_in_bound(coordinate, limit):
-    coordinate 
-
 def create_waypoints(init_coordinate, width, height, spacing):
     waypoints = []
 

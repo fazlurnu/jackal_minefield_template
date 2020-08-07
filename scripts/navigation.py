@@ -3,7 +3,7 @@
 import rospy, os, sys, curses, time, cv2, tf
 import numpy as np
 from numpy import deg2rad, rad2deg
-from math import atan2, sqrt, pow
+from math import atan2, sqrt, pow, sin, cos
 from curses import wrapper
 from threading import Thread
 from geometry_msgs.msg import Twist, Pose, PoseStamped, PoseWithCovariance, PoseWithCovarianceStamped, Transform
@@ -31,7 +31,9 @@ robotPose = PoseStamped()
 robotOdom = Odometry()
 leftCoilPose = PoseStamped()
 rightCoilPose = PoseStamped()
+minePose = PoseStamped()
 sendingMineGuess = False
+robot2detectedMineDistance = 0
 
 # Target pose
 targetPose = PoseStamped()
@@ -42,9 +44,9 @@ newWaypointsSent = False
 
 # Create waypoints
 missionFinished = False
-init_coordinate = (0.5,-2)
-width = 5
-height = 3
+init_coordinate = (-3.6,-4.0)
+width = 9
+height = 8
 spacing = 0.5
 targetList = create_waypoints(init_coordinate, width, height, spacing)
 
@@ -67,7 +69,7 @@ imuInfo = Imu()
 
 #Metal detector data
 coils = Coil()
-coilValueMineDetected = 0.42
+coilValueMineDetected = 0.45
 
 ######################### AUXILIARY FUNCTIONS ############################
 
@@ -163,8 +165,7 @@ def toMinefieldPose(inputPose):
 # Send mine position to HRATC Framework
 def sendMine():
     global transListener
-    
-    minePose = PoseStamped()
+    global minePose
 
     ## It is better to compute the coil pose in relation to a corrected robot pose
     updateRobotPose()
@@ -188,8 +189,8 @@ def sendMine():
 ######################### CALLBACKS ############################
 
 def receiveMineGuess(PoseGuess):
+    global minePose
 
-    minePose = PoseStamped()
     minePose = PoseGuess
 
 # Laser range-finder callback
@@ -245,15 +246,29 @@ def addWaypointsAroundTheMine():
     global targetList
     global newWaypointsSent
 
-    currentTarget = (targetPose.pose.position.x, targetPose.pose.position.y)
-    WP1 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y)
-    WP2 = (robotPose.pose.position.x + mine_clearance, robotPose.pose.position.y + mine_clearance)
-    WP3 = (robotPose.pose.position.x, robotPose.pose.position.y + mine_clearance)
+    minePose_x = minePose.pose.position.y
+    minePose_y = -minePose.pose.position.x
+    currentTarget_x = targetPose.pose.position.x
+    currentTarget_y = targetPose.pose.position.y
 
-    targetList.insert(0, currentTarget)
-    targetList.insert(0,WP3)
-    targetList.insert(0, WP2)
-    targetList.insert(0, WP1)
+    currentTarget2detectedMineDistance = getDistance(minePose_x, minePose_y, currentTarget_x, currentTarget_y)
+
+    WPnew = []
+    # current target is close to mine
+    if (currentTarget2detectedMineDistance > mine_clearance):
+        heading = deg2rad(getHeading())
+        currentTarget = (targetPose.pose.position.x, targetPose.pose.position.y)
+        targetList.insert(0, currentTarget)
+
+        for newWPAngle in range(180, 0, -90):
+
+            newWPAngleRad = deg2rad(newWPAngle)
+            x_new = minePose.pose.position.x + mine_clearance * sin(heading + newWPAngleRad)
+            y_new = minePose.pose.position.y + mine_clearance * cos(heading + newWPAngleRad)
+            newWP = (y_new, -x_new)
+            
+            print(newWPAngle, newWP)
+            targetList.insert(0, newWP)
 
     newWaypointsSent = True
 
@@ -280,7 +295,7 @@ def showStats():
     std.addstr(13,0,"Distance:")
     std.addstr(14, 0, "{}".format(getDistanceToTarget()))
     std.addstr(15,0,"Heading, Heading Target:")
-    std.addstr(16, 0, "{} \t {}".format(getYaw(), getHeadingTarget()))
+    std.addstr(16, 0, "{} \t {}".format(getHeading(), getHeadingTarget()))
     std.addstr(17, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
 
     targetString = "Next Target: "
@@ -289,8 +304,9 @@ def showStats():
 
     std.addstr(18, 0, targetString)
 
-    std.addstr(21, 0, "Sending Mine Guess: {}, Mine Guess Sent: {}, NewWPSent: {}".format(sendingMineGuess, mineGuessSent, newWaypointsSent))
-    std.addstr(22, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
+    std.addstr(21, 0, "Robot to Mine Distance: {}".format(robot2detectedMineDistance))
+    std.addstr(22, 0, "Sending Mine Guess: {}, Mine Guess Sent: {}, NewWPSent: {}".format(sendingMineGuess, mineGuessSent, newWaypointsSent))
+    std.addstr(23, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
     #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
     #if laserInfo.ranges != []:
@@ -307,6 +323,7 @@ def KeyCheck(stdscr):
     global sendingMineGuess
     global mineGuessSent
     global newWaypointsSent
+    global robot2detectedMineDistance
 
     stdscr.keypad(True)
     stdscr.nodelay(True)
@@ -388,7 +405,14 @@ def KeyCheck(stdscr):
             else:
                 sendingMineGuess = False
 
-                if(coils.left_coil > coilValueMineDetected or coils.right_coil > coilValueMineDetected):
+                minePose_x = minePose.pose.position.y
+                minePose_y = -minePose.pose.position.x
+                robotPose_x = robotPose.pose.position.x
+                robotPose_y = robotPose.pose.position.y
+
+                robot2detectedMineDistance = getDistance(minePose_x, minePose_y, robotPose_x, robotPose_y)
+                
+                if(robot2detectedMineDistance < mine_clearance):
                     robotTwist.linear.x = backward_speed
 
         pubVel.publish(robotTwist)
@@ -419,7 +443,7 @@ def getHeadingTarget():
 
     return rad2deg(headingTarget)
 
-def getYaw():
+def getHeading():
     global robotPose
 
     quaternion = (
@@ -437,9 +461,14 @@ def getYaw():
 
 def getHeadingDiff():
     
-    headingDiff = getYaw() - getHeadingTarget()
+    headingDiff = getHeading() - getHeadingTarget()
     return headingDiff
 
+def getDistance(x1, y1, x2, y2):
+    diffY = y2 - y1
+    diffX = x2 - x1
+
+    return sqrt(pow(diffY,2) + pow(diffX,2))
 
 def getDistanceToTarget():
     global targetPose
@@ -447,13 +476,11 @@ def getDistanceToTarget():
 
     y1 = robotPose.pose.position.y
     y2 = targetPose.pose.position.y
-    diffY = y2-y1
 
     x1 = robotPose.pose.position.x
     x2 = targetPose.pose.position.x
-    diffX = x2-x1
 
-    distance = sqrt(pow(diffY,2) + pow(diffX,2))
+    distance = getDistance(x1, y1, x2, y2)
 
     return distance
 
