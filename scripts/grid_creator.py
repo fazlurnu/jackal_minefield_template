@@ -13,8 +13,12 @@ def create_waypoints(init_coordinate, width, height, spacing):
     right_limit = init_coordinate[1] + width
 
     while (current_coordinate[0] <= upper_limit):
-        waypoints.append((current_coordinate[0], current_coordinate[1]))
-        waypoints.append((current_coordinate[0], current_coordinate[1] + width))
+        if (counter % 2 == 0):
+            waypoints.append((current_coordinate[0], current_coordinate[1]))
+            waypoints.append((current_coordinate[0], current_coordinate[1] + width))
+        else:
+            waypoints.append((current_coordinate[0], current_coordinate[1] + width))
+            waypoints.append((current_coordinate[0], current_coordinate[1]))
 
         counter += 1
 
@@ -23,9 +27,9 @@ def create_waypoints(init_coordinate, width, height, spacing):
     return waypoints
 
 def main():
-    init_coordinate = (0,0)
-    width = 4
-    height = 4
+    init_coordinate = (0.5,-2)
+    width = 5
+    height = 3
     spacing = 0.5
 
     waypoints = create_waypoints(init_coordinate, width, height, spacing)
