@@ -16,7 +16,7 @@ mkdir -p jackal_minefield_ws/src; cd jackal_ws/src; catkin_init_workspace
 git clone https://github.com/jackal/jackal.git
 git clone https://github.com/jackal/jackal_desktop.git
 git clone https://github.com/fazlurnu/jackal_minefield_simulator.git
-git clone https://github.com/fazlurnu/jackal_minefield_template
+git clone https://github.com/fazlurnu/jackal_minefield_template.git
 ```
 HRATC 2017 Sources:
 ```
