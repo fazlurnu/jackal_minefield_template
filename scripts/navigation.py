@@ -42,6 +42,12 @@ headingTolerance = 0.3
 mineGuessSent = False
 newWaypointsSent = False
 
+#control param
+linear_speed_lower_limit = 0.5
+linear_speed_upper_limit = 0.65
+angular_speed_lower_limit = 0.15
+angular_speed_upper_limit = 2
+
 # Create waypoints
 missionFinished = False
 init_coordinate = (-3.6,-4.0)
@@ -334,12 +340,6 @@ def KeyCheck(stdscr):
 
     #publishing topics
     pubVel   = rospy.Publisher('/cmd_vel', Twist)
-
-    #control param
-    linear_speed_lower_limit = 0.5
-    linear_speed_upper_limit = 0.8
-    angular_speed_lower_limit = 0.15
-    angular_speed_upper_limit = 2
 
     currentTarget = targetList.pop(0)
     setTargetPose(currentTarget[0], currentTarget[1])
