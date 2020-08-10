@@ -38,9 +38,14 @@ robot2detectedMineDistance = 0
 # Target pose
 targetPose = PoseStamped()
 distanceTolerance = 0.05
+xTrackErrorTolerance = 0.05
 headingTolerance = 0.3
 mineGuessSent = False
 newWaypointsSent = False
+
+prevTargetPose = PoseStamped()
+prevTargetPose.pose.position.x = x
+prevTargetPose.pose.position.y = y
 
 #control param
 kp_angular = -0.03
@@ -89,7 +94,17 @@ states = {
     1: "Sending Mine Guess, Sending New Waypoint",
     2: "Sending Mine Guess, New Waypoint Sent",
     3: "Mine Guess Sent",
+    4: "Avoid Obstacle",
     1000 : "State Unknown"
+}
+
+# Obstacle Checker
+regions = {
+    'right': 0,
+    'fright': 0,
+    'front': 0,
+    'fleft': 0,
+    'left': 0,
 }
 
 def getState():
@@ -244,6 +259,16 @@ def receiveLaserHokuyo(LaserNow):
     global laserInfoHokuyo 
     laserInfoHokuyo = LaserNow
 
+    regionSize = int(len(laserInfoHokuyo)/len(regions))
+
+    regions = {
+        'right':  min(min(msg.ranges[regionSize*0 : regionSize-1]), 10),
+        'fright': min(min(msg.ranges[regionSize*1 : regionSize*2-1]), 10),
+        'front':  min(min(msg.ranges[regionSize*2 : regionSize*3-1]), 10),
+        'fleft':  min(min(msg.ranges[regionSize*3 : regionSize*4-1]), 10),
+        'left':   min(min(msg.ranges[regionSize*4 : regionSize*5-1]), 10),
+    }
+
 # IMU data callback
 def receiveImu(ImuNow):
     global imuInfo 
@@ -350,14 +375,14 @@ def showStats():
 
     std.addstr(18, 0, targetString)
 
-    std.addstr(22, 0, "Current State: " + states[getState()])
-    std.addstr(23, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
+    std.addstr(21, 0, "Current State: " + states[getState()])
+    std.addstr(22, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
     #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
     #if laserInfo.ranges != []:
     #    std.addstr(20, 0 , "Laser Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfo.ranges), min(laserInfo.ranges), max(laserInfo.ranges)))
-    #if laserInfoHokuyo.ranges != []:
-    #    std.addstr(21, 0 , "Laser Hokuyo Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfoHokuyo.ranges), min(laserInfoHokuyo.ranges), max(laserInfoHokuyo.ranges)))
+    if laserInfoHokuyo.ranges != []:
+        std.addstr(23, 0 , "Laser Hokuyo Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfoHokuyo.ranges), min(laserInfoHokuyo.ranges), max(laserInfoHokuyo.ranges)))
 
     std.refresh()
 
@@ -479,6 +504,9 @@ def KeyCheck(stdscr):
 # Navigation
 def setTargetPose(x, y):
     global targetPose
+    global prevTargetPose
+
+    prevTargetPose = targetPose
 
     targetPose.pose.position.x = x
     targetPose.pose.position.y = y
@@ -537,6 +565,15 @@ def getDistanceToTarget():
     distance = getDistance(x1, y1, x2, y2)
 
     return distance
+
+def getCrossTrackDistance():
+    y0 = robotPose.pose.position.y
+    y1 = targetPose.pose.position.y
+    y2 = prevTargetPose.pose.position.y
+
+    x0 = robotPose.pose.position.x
+    x1 = targetPose.pose.position.x
+    x2 = prevTargetPose.pose.position.x
 
 ######################### MAIN ############################
 
