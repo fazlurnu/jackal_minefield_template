@@ -2,6 +2,7 @@
 # -*- coding:utf8 -*-
 import rospy, os, sys, curses, time, cv2, tf
 import numpy as np
+import copy
 from numpy import deg2rad, rad2deg
 from math import atan2, sqrt, pow, sin, cos
 from curses import wrapper
@@ -37,15 +38,12 @@ robot2detectedMineDistance = 0
 
 # Target pose
 targetPose = PoseStamped()
+
 distanceTolerance = 0.05
 xTrackErrorTolerance = 0.05
 headingTolerance = 0.3
 mineGuessSent = False
 newWaypointsSent = False
-
-prevTargetPose = PoseStamped()
-prevTargetPose.pose.position.x = x
-prevTargetPose.pose.position.y = y
 
 #control param
 kp_angular = -0.03
@@ -257,16 +255,18 @@ def receiveMineGuess(PoseGuess):
 # Laser range-finder callback
 def receiveLaserHokuyo(LaserNow):
     global laserInfoHokuyo 
+    global regions
+
     laserInfoHokuyo = LaserNow
 
-    regionSize = int(len(laserInfoHokuyo)/len(regions))
+    regionSize = int(len(laserInfoHokuyo.ranges)/len(regions))
 
     regions = {
-        'right':  min(min(msg.ranges[regionSize*0 : regionSize-1]), 10),
-        'fright': min(min(msg.ranges[regionSize*1 : regionSize*2-1]), 10),
-        'front':  min(min(msg.ranges[regionSize*2 : regionSize*3-1]), 10),
-        'fleft':  min(min(msg.ranges[regionSize*3 : regionSize*4-1]), 10),
-        'left':   min(min(msg.ranges[regionSize*4 : regionSize*5-1]), 10),
+        'right':  min(min(laserInfoHokuyo.ranges[regionSize*0 : regionSize-1]), 10),
+        'fright': min(min(laserInfoHokuyo.ranges[regionSize*1 : regionSize*2-1]), 10),
+        'front':  min(min(laserInfoHokuyo.ranges[regionSize*2 : regionSize*3-1]), 10),
+        'fleft':  min(min(laserInfoHokuyo.ranges[regionSize*3 : regionSize*4-1]), 10),
+        'left':   min(min(laserInfoHokuyo.ranges[regionSize*4 : regionSize*5-1]), 10),
     }
 
 # IMU data callback
@@ -354,35 +354,32 @@ def showStats():
     std.addstr(0,0,"Press Esc to Quit...")
     std.addstr(1,0,"Linear:")
     std.addstr(2, 0, "{} \t {} \t {}".format(robotTwist.linear.x,robotTwist.linear.y,robotTwist.linear.z))
-    std.addstr(4,0,"Angular:")
-    std.addstr(5, 0, "{} \t {} \t {}".format(robotTwist.angular.x,robotTwist.angular.y,robotTwist.angular.z))
-    std.addstr(6,0,"Robot Position:")
-    std.addstr(7, 0, "{} \t {} \t {}".format(robotPose.pose.position.x, robotPose.pose.position.y, robotPose.pose.position.z))
-    std.addstr(8,0,"Coil Position:")
-    std.addstr(9, 0, "left: {} \t {} \t {}".format(leftCoilPose.pose.position.x, leftCoilPose.pose.position.y, leftCoilPose.pose.position.z))
-    std.addstr(10, 0, "right: {} \t {} \t {}".format(rightCoilPose.pose.position.x, rightCoilPose.pose.position.y, rightCoilPose.pose.position.z))
-    std.addstr(11,0,"Target Position:")
-    std.addstr(12, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
-    std.addstr(13,0,"Distance:")
-    std.addstr(14, 0, "{}".format(getDistanceToTarget()))
-    std.addstr(15,0,"Heading, Heading Target:")
-    std.addstr(16, 0, "{} \t {}".format(getHeading(), getHeadingTarget()))
-    std.addstr(17, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
+    std.addstr(3,0,"Angular:")
+    std.addstr(4, 0, "{} \t {} \t {}".format(robotTwist.angular.x,robotTwist.angular.y,robotTwist.angular.z))
+    std.addstr(5,0,"Robot Position:")
+    std.addstr(6, 0, "{} \t {} \t {}".format(robotPose.pose.position.x, robotPose.pose.position.y, robotPose.pose.position.z))
+    std.addstr(7,0,"Coil Position:")
+    std.addstr(8, 0, "left: {} \t {} \t {}".format(leftCoilPose.pose.position.x, leftCoilPose.pose.position.y, leftCoilPose.pose.position.z))
+    std.addstr(9, 0, "right: {} \t {} \t {}".format(rightCoilPose.pose.position.x, rightCoilPose.pose.position.y, rightCoilPose.pose.position.z))
+    std.addstr(10,0,"Target Position:")
+    std.addstr(11, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
+    std.addstr(12,0,"Distance, Cross Track Distance:")
+    std.addstr(13, 0, "{} \t {}".format(getDistanceToTarget(), getCrossTrackDistance()))
+    std.addstr(14,0,"Heading, Heading Target:")
+    std.addstr(15, 0, "{} \t {}".format(getHeading(), getHeadingTarget()))
+    std.addstr(16, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
 
     targetString = "Next Target: "
     for i in range (len(targetList)):
         targetString += str(targetList[i]) + ", "
 
-    std.addstr(18, 0, targetString)
+    std.addstr(17, 0, targetString)
 
-    std.addstr(21, 0, "Current State: " + states[getState()])
-    std.addstr(22, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
+    std.addstr(20, 0, "Current State: " + states[getState()])
     #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
-    #if laserInfo.ranges != []:
-    #    std.addstr(20, 0 , "Laser Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfo.ranges), min(laserInfo.ranges), max(laserInfo.ranges)))
     if laserInfoHokuyo.ranges != []:
-        std.addstr(23, 0 , "Laser Hokuyo Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfoHokuyo.ranges), min(laserInfoHokuyo.ranges), max(laserInfoHokuyo.ranges)))
+        std.addstr(21, 0 , "Laser Hokuyo Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfoHokuyo.ranges), min(laserInfoHokuyo.ranges), max(laserInfoHokuyo.ranges)))
 
     std.refresh()
 
@@ -464,6 +461,7 @@ def KeyCheck(stdscr):
         # get control params
         distance = getDistanceToTarget()
         headingDiff = getHeadingDiff()
+        xTrackDistance = getCrossTrackDistance()
 
         # get coil conditions
         leftCoilDetected = coils.left_coil < coilValueMineDetected
@@ -504,9 +502,6 @@ def KeyCheck(stdscr):
 # Navigation
 def setTargetPose(x, y):
     global targetPose
-    global prevTargetPose
-
-    prevTargetPose = targetPose
 
     targetPose.pose.position.x = x
     targetPose.pose.position.y = y
@@ -569,11 +564,16 @@ def getDistanceToTarget():
 def getCrossTrackDistance():
     y0 = robotPose.pose.position.y
     y1 = targetPose.pose.position.y
-    y2 = prevTargetPose.pose.position.y
+    y2 = 0
 
     x0 = robotPose.pose.position.x
     x1 = targetPose.pose.position.x
-    x2 = prevTargetPose.pose.position.x
+    x2 = 0
+
+    numerator = (y2-y1)*x0 - (x2-x1)*y0 + x2*y1 - y2*x1
+    denum = getDistance(x1, y1, x2, y2)
+
+    return numerator/denum
 
 ######################### MAIN ############################
 
