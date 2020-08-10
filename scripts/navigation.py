@@ -37,12 +37,15 @@ robot2detectedMineDistance = 0
 
 # Target pose
 targetPose = PoseStamped()
-distanceTolerance = 0.1
+distanceTolerance = 0.05
 headingTolerance = 0.3
 mineGuessSent = False
 newWaypointsSent = False
 
 #control param
+kp_angular = -0.03
+kp_linear = 0.8
+
 linear_speed_lower_limit = 0.5
 linear_speed_upper_limit = 0.65
 angular_speed_lower_limit = 0.15
@@ -58,7 +61,7 @@ targetList = create_waypoints(init_coordinate, width, height, spacing)
 
 # Rounding the mine
 backward_speed = -1
-mine_clearance = 1.25
+mine_clearance = 1
 
 # Markers
 properMineMarkers = MarkerArray()
@@ -322,6 +325,29 @@ def showStats():
 
     std.refresh()
 
+# Waypoint following algorithm
+def goToWaypoint(headingDiff, distance):
+    global missionFinished
+
+    if(headingDiff > headingTolerance):
+        robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
+        robotTwist.linear.x = 0
+    elif(headingDiff < -headingTolerance):
+        robotTwist.angular.z = set_limit(kp_angular*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
+        robotTwist.linear.x = 0
+    else:
+        robotTwist.angular.z = kp_angular*headingDiff
+        if(distance > distanceTolerance):
+            robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
+        else:
+            robotTwist.linear.x = 0
+
+            if (len(targetList) > 0):
+                currentTarget = targetList.pop(0)
+                setTargetPose(currentTarget[0], currentTarget[1])
+            else:
+                missionFinished = True
+
 # Basic control
 def KeyCheck(stdscr):
     global targetList
@@ -358,11 +384,7 @@ def KeyCheck(stdscr):
             sendMine()
 
         distance = getDistanceToTarget()
-        headingTarget = getHeadingTarget()
         headingDiff = getHeadingDiff()
-
-        kp_angular = -0.03
-        kp_linear = 0.8
 
         if(coils.left_coil < coilValueMineDetected and coils.right_coil < coilValueMineDetected):
             
@@ -370,24 +392,7 @@ def KeyCheck(stdscr):
             mineGuessSent = False
             newWaypointsSent = False
 
-            if(headingDiff > headingTolerance):
-                robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
-                robotTwist.linear.x = 0
-            elif(headingDiff < -headingTolerance):
-                robotTwist.angular.z = set_limit(kp_angular*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
-                robotTwist.linear.x = 0
-            else:
-                robotTwist.angular.z = kp_angular*headingDiff
-                if(distance > distanceTolerance):
-                    robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
-                else:
-                    robotTwist.linear.x = 0
-
-                    if (len(targetList) > 0):
-                        currentTarget = targetList.pop(0)
-                        setTargetPose(currentTarget[0], currentTarget[1])
-                    else:
-                        missionFinished = True
+            goToWaypoint(headingDiff, distance)
                     
         else:
             # if mineGuess is not received, keep sending it
