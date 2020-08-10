@@ -23,6 +23,14 @@ def create_waypoints(init_coordinate, width, height, spacing):
 
     return waypoints
 
+def create_target_lines(targetList):
+    targetLines = [((0,0), (targetList[0]))]
+
+    for i in range(len(targetList)-1):
+        targetLines.append((targetList[i], targetList[i+1]))
+
+    return targetLines
+
 def main():
     init_coordinate = (0.5,-2)
     width = 5
@@ -30,7 +38,8 @@ def main():
     spacing = 0.5
 
     waypoints = create_waypoints(init_coordinate, width, height, spacing)
-    print(waypoints)
+    targetLines = create_target_lines(waypoints)
+    print(targetLines)
 
 if __name__ == "__main__":
     main()

@@ -15,7 +15,7 @@ from metal_detector_msgs.msg._Coil import Coil
 from tf import transformations
 
 # add self made libraries
-from grid_creator import create_waypoints
+from grid_creator import create_waypoints, create_target_lines
 from control import set_limit
 
 # read/write stuff on screen
@@ -61,6 +61,7 @@ width = 9
 height = 8
 spacing = 0.5
 targetList = create_waypoints(init_coordinate, width, height, spacing)
+targetLines = create_target_lines(targetList)
 
 # Rounding the mine
 backward_speed = 1
