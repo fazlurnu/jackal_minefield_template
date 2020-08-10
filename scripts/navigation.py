@@ -60,7 +60,7 @@ spacing = 0.5
 targetList = create_waypoints(init_coordinate, width, height, spacing)
 
 # Rounding the mine
-backward_speed = -1
+backward_speed = 1
 mine_clearance = 1
 
 # Markers
@@ -79,7 +79,34 @@ imuInfo = Imu()
 #Metal detector data
 coils = Coil()
 coilValueMineDetected = 0.45
+mineNotDetected = False
+sendMineCounter = 0
 
+# States
+currentState = 0
+states = {
+    0: "Go To Waypoint",
+    1: "Sending Mine Guess, Sending New Waypoint",
+    2: "Sending Mine Guess, New Waypoint Sent",
+    3: "Mine Guess Sent",
+    1000 : "State Unknown"
+}
+
+def getState():
+    state_ = 1000
+
+    if (mineNotDetected):
+        state_ = 0
+    else:
+        if(not(mineGuessSent)):
+            if(not(newWaypointsSent)):
+                state_ = 1
+            else:
+                state_ = 2
+        else:
+            state_ = 3
+
+    return state_
 ######################### AUXILIARY FUNCTIONS ############################
 
 # Get a transformation matrix from a geometry_msgs/Pose
@@ -175,6 +202,10 @@ def toMinefieldPose(inputPose):
 def sendMine():
     global transListener
     global minePose
+    global mineGuessSent
+    global sendMineCounter
+
+    sendMineCounterTimeout = 20
 
     ## It is better to compute the coil pose in relation to a corrected robot pose
     updateRobotPose()
@@ -192,6 +223,12 @@ def sendMine():
         minePose = toMinefieldPose(centerOfCoils)
     
     pubMine.publish(minePose)
+
+    sendMineCounter += 1
+
+    if(sendMineCounter > sendMineCounterTimeout):
+        mineGuessSent = True
+        sendMineCounter = 0
 
     time.sleep(0.5)
 
@@ -313,8 +350,7 @@ def showStats():
 
     std.addstr(18, 0, targetString)
 
-    std.addstr(21, 0, "Robot to Mine Distance: {}".format(robot2detectedMineDistance))
-    std.addstr(22, 0, "Sending Mine Guess: {}, Mine Guess Sent: {}, NewWPSent: {}".format(sendingMineGuess, mineGuessSent, newWaypointsSent))
+    std.addstr(22, 0, "Current State: " + states[getState()])
     std.addstr(23, 0, "Wrong: {} \t Proper: {}".format(len(wrongMineMarkers.markers), len(properMineMarkers.markers)))
     #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
@@ -325,9 +361,28 @@ def showStats():
 
     std.refresh()
 
+# Robot command function
+def moveForward(speed):
+    robotTwist.linear.x = speed
+    robotTwist.angular.z = 0
+
+def moveBackward(speed):
+    robotTwist.linear.x = -speed
+    robotTwist.angular.z = 0
+
+def robotStop():
+    robotTwist.linear.x = 0
+    robotTwist.angular.z = 0
+
 # Waypoint following algorithm
 def goToWaypoint(headingDiff, distance):
     global missionFinished
+    global mineGuessSent
+    global newWaypointsSent
+            
+    # reset param
+    mineGuessSent = False
+    newWaypointsSent = False
 
     if(headingDiff > headingTolerance):
         robotTwist.angular.z = set_limit(kp_angular*headingDiff, -angular_speed_lower_limit, -angular_speed_upper_limit)
@@ -351,11 +406,9 @@ def goToWaypoint(headingDiff, distance):
 # Basic control
 def KeyCheck(stdscr):
     global targetList
-    global missionFinished
-    global sendingMineGuess
-    global mineGuessSent
-    global newWaypointsSent
     global robot2detectedMineDistance
+    global mineNotDetected
+    global currentState
 
     stdscr.keypad(True)
     stdscr.nodelay(True)
@@ -383,42 +436,38 @@ def KeyCheck(stdscr):
         if k == "x":
             sendMine()
 
+        # get control params
         distance = getDistanceToTarget()
         headingDiff = getHeadingDiff()
 
-        if(coils.left_coil < coilValueMineDetected and coils.right_coil < coilValueMineDetected):
-            
-            # reset param
-            mineGuessSent = False
-            newWaypointsSent = False
+        # get coil conditions
+        leftCoilDetected = coils.left_coil < coilValueMineDetected
+        rightCoilDetected = coils.right_coil < coilValueMineDetected
+        mineNotDetected = leftCoilDetected and rightCoilDetected
 
+        currentState = getState()
+
+        if(currentState == 0):
             goToWaypoint(headingDiff, distance)
-                    
+        
+        elif(currentState == 1):
+            robotStop()
+            sendMine()
+
+            addWaypointsAroundTheMine()
+                
+            currentTarget = targetList.pop(0)
+            setTargetPose(currentTarget[0], currentTarget[1])
+
+        elif(currentState == 2):
+            robotStop()
+            sendMine()
+
+        elif(currentState == 3):
+            moveBackward(backward_speed)
+
         else:
-            # if mineGuess is not received, keep sending it
-            if(not(mineGuessSent)):
-                robotTwist.linear.x = 0
-                sendMine()
-                sendingMineGuess = True
-
-                if (not(newWaypointsSent)):
-                    addWaypointsAroundTheMine()
-                
-                    currentTarget = targetList.pop(0)
-                    setTargetPose(currentTarget[0], currentTarget[1])
-                
-            else:
-                sendingMineGuess = False
-
-                minePose_x = minePose.pose.position.y
-                minePose_y = -minePose.pose.position.x
-                robotPose_x = robotPose.pose.position.x
-                robotPose_y = robotPose.pose.position.y
-
-                robot2detectedMineDistance = getDistance(minePose_x, minePose_y, robotPose_x, robotPose_y)
-                
-                if(robot2detectedMineDistance < mine_clearance):
-                    robotTwist.linear.x = backward_speed
+            robotStop()
 
         pubVel.publish(robotTwist)
 
