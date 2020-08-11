@@ -108,7 +108,15 @@ regions = {
     'left': 0,
 }
 
-obstacleClearance = 0.75
+currentObstacleState = 0
+obstacleStates = {
+    0: "No Obstacles",
+    1: "Turn Left",
+    2: "Turn Right",
+    3: "Follow Wall"
+}
+
+obstacleClearance = 1
 
 ######################### AUXILIARY FUNCTIONS ############################
 
@@ -251,6 +259,60 @@ def getState():
 
     return state_
 
+def getObstacleState():
+    global regions
+    
+    currentObstacleState_ = 1000
+
+    #obstacleStates = {
+    #    0: "No Obstacles",
+    #    1: "Turn Left",
+    #    2: "Turn Right",
+    #    3: "Follow Wall"
+    #}
+
+    state_description = ''
+
+    frontObstacleFree = regions['front'] > obstacleClearance
+    fleftObstacleFree = regions['fleft'] > obstacleClearance
+    frightObstacleFree = regions['fright'] > obstacleClearance
+
+    if frontObstacleFree and fleftObstacleFree and frightObstacleFree:
+        # no obstacle
+        currentObstacleState_ = 0
+
+    elif not(frontObstacleFree) and fleftObstacleFree and frightObstacleFree:
+        #obstacle front, turn left
+        currentObstacleState_ = 1
+
+    elif frontObstacleFree and fleftObstacleFree and not(frightObstacleFree):
+        #wall on right side, follow wall
+        currentObstacleState_ = 3
+
+    elif frontObstacleFree and not(fleftObstacleFree) and frightObstacleFree:
+        #wall on left side, follow wall
+        currentObstacleState_ = 3
+
+    elif not(frontObstacleFree) and fleftObstacleFree and not(frightObstacleFree):
+        #wall on front and fright, turn left
+        currentObstacleState_ = 1
+
+    elif not(frontObstacleFree) and not(fleftObstacleFree) and frightObstacleFree:
+        #wall on front and fleft, turn right
+        currentObstacleState_ = 2
+
+    elif not(frontObstacleFree) and not(fleftObstacleFree) and not(frightObstacleFree):
+        #wall everywhere, turn left
+        currentObstacleState_ = 1
+
+    elif frontObstacleFree and not(fleftObstacleFree) and not(frightObstacleFree):
+        #wall on left and right, go forward
+        currentObstacleState_ = 0
+    else:
+        state_description = 'unknown case'
+        rospy.loginfo(regions)
+
+    return currentObstacleState_
 ######################### CALLBACKS ############################
 
 def receiveMineGuess(PoseGuess):
@@ -383,7 +445,7 @@ def showStats():
 
     std.addstr(19, 0, targetString)
 
-    std.addstr(22, 0, "Current State: " + states[getState()])
+    std.addstr(22, 0, "Current State: {}, \tObstacle State: {}".format(states[getState()], obstacleStates[getObstacleState()]))
     #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
     if laserInfoHokuyo.ranges != []:
