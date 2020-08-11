@@ -38,12 +38,15 @@ robot2detectedMineDistance = 0
 
 # Target pose
 targetPose = PoseStamped()
-
 distanceTolerance = 0.05
 xTrackErrorTolerance = 0.05
-headingTolerance = 0.3
+headingTolerance = 1
 mineGuessSent = False
 newWaypointsSent = False
+
+prevTargetPose = PoseStamped()
+prevTargetPose.pose.position.x = robotPose.pose.position.x
+prevTargetPose.pose.position.y = robotPose.pose.position.y
 
 #control param
 kp_angular = -0.03
@@ -61,7 +64,6 @@ width = 9
 height = 8
 spacing = 0.5
 targetList = create_waypoints(init_coordinate, width, height, spacing)
-targetLines = create_target_lines(targetList)
 
 # Rounding the mine
 backward_speed = 1
@@ -97,7 +99,7 @@ states = {
     1000 : "State Unknown"
 }
 
-# Obstacle Checker
+# Obstacle Parameters
 regions = {
     'right': 0,
     'fright': 0,
@@ -106,21 +108,8 @@ regions = {
     'left': 0,
 }
 
-def getState():
-    state_ = 1000
+obstacleClearance = 0.75
 
-    if (mineNotDetected):
-        state_ = 0
-    else:
-        if(not(mineGuessSent)):
-            if(not(newWaypointsSent)):
-                state_ = 1
-            else:
-                state_ = 2
-        else:
-            state_ = 3
-
-    return state_
 ######################### AUXILIARY FUNCTIONS ############################
 
 # Get a transformation matrix from a geometry_msgs/Pose
@@ -246,6 +235,22 @@ def sendMine():
 
     time.sleep(0.5)
 
+def getState():
+    state_ = 1000
+
+    if (mineNotDetected):
+        state_ = 0
+    else:
+        if(not(mineGuessSent)):
+            if(not(newWaypointsSent)):
+                state_ = 1
+            else:
+                state_ = 2
+        else:
+            state_ = 3
+
+    return state_
+
 ######################### CALLBACKS ############################
 
 def receiveMineGuess(PoseGuess):
@@ -364,23 +369,25 @@ def showStats():
     std.addstr(9, 0, "right: {} \t {} \t {}".format(rightCoilPose.pose.position.x, rightCoilPose.pose.position.y, rightCoilPose.pose.position.z))
     std.addstr(10,0,"Target Position:")
     std.addstr(11, 0, "{} \t {} \t {}".format(targetPose.pose.position.x, targetPose.pose.position.y, targetPose.pose.position.z))
-    std.addstr(12,0,"Distance, Cross Track Distance:")
-    std.addstr(13, 0, "{} \t {}".format(getDistanceToTarget(), getCrossTrackDistance()))
-    std.addstr(14,0,"Heading, Heading Target:")
-    std.addstr(15, 0, "{} \t {}".format(getHeading(), getHeadingTarget()))
-    std.addstr(16, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
+    std.addstr(12,0,"Prev Target Position:")
+    std.addstr(13, 0, "{} \t {} \t {}".format(prevTargetPose.pose.position.x, prevTargetPose.pose.position.y, prevTargetPose.pose.position.z))
+    std.addstr(14,0,"Distance, Cross Track Distance:")
+    std.addstr(15, 0, "{} \t {}".format(getDistanceToTarget(), getCrossTrackDistance()))
+    std.addstr(16,0,"Heading, Heading Target:")
+    std.addstr(17, 0, "{} \t {}".format(getHeading(), getHeadingTarget()))
+    std.addstr(18, 0, "Coils readings: l: {} \t r: {}".format(coils.left_coil, coils.right_coil))
 
     targetString = "Next Target: "
     for i in range (len(targetList)):
         targetString += str(targetList[i]) + ", "
 
-    std.addstr(17, 0, targetString)
+    std.addstr(19, 0, targetString)
 
-    std.addstr(20, 0, "Current State: " + states[getState()])
+    std.addstr(22, 0, "Current State: " + states[getState()])
     #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
     if laserInfoHokuyo.ranges != []:
-        std.addstr(21, 0 , "Laser Hokuyo Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfoHokuyo.ranges), min(laserInfoHokuyo.ranges), max(laserInfoHokuyo.ranges)))
+        std.addstr(23, 0 , "Laser Hokuyo Readings {} Range Min {:0.4f} Range Max {:0.4f}".format( len(laserInfoHokuyo.ranges), min(laserInfoHokuyo.ranges), max(laserInfoHokuyo.ranges)))
 
     std.refresh()
 
@@ -414,7 +421,8 @@ def goToWaypoint(headingDiff, distance):
         robotTwist.angular.z = set_limit(kp_angular*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
         robotTwist.linear.x = 0
     else:
-        robotTwist.angular.z = kp_angular*headingDiff
+        crossTrackDistance = getCrossTrackDistance()
+        robotTwist.angular.z = 2*kp_angular*crossTrackDistance
         if(distance > distanceTolerance):
             robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
         else:
@@ -481,7 +489,7 @@ def KeyCheck(stdscr):
             addWaypointsAroundTheMine()
                 
             currentTarget = targetList.pop(0)
-            setTargetPose(currentTarget[0], currentTarget[1])
+            setTargetPose(currentTarget[0], currentTarget[1], avoidingMine = True)
 
         elif(currentState == 2):
             robotStop()
@@ -501,8 +509,16 @@ def KeyCheck(stdscr):
     rospy.signal_shutdown("Shutdown Competitor")
 
 # Navigation
-def setTargetPose(x, y):
+def setTargetPose(x, y, avoidingMine=False):
     global targetPose
+    global prevTargetPose
+
+    if(avoidingMine):
+        prevTargetPose.pose.position.x = robotPose.pose.position.x
+        prevTargetPose.pose.position.y = robotPose.pose.position.y
+    else:
+        prevTargetPose.pose.position.x = targetPose.pose.position.x
+        prevTargetPose.pose.position.y = targetPose.pose.position.y
 
     targetPose.pose.position.x = x
     targetPose.pose.position.y = y
@@ -565,11 +581,11 @@ def getDistanceToTarget():
 def getCrossTrackDistance():
     y0 = robotPose.pose.position.y
     y1 = targetPose.pose.position.y
-    y2 = 0
+    y2 = prevTargetPose.pose.position.y
 
     x0 = robotPose.pose.position.x
     x1 = targetPose.pose.position.x
-    x2 = 0
+    x2 = prevTargetPose.pose.position.x
 
     numerator = (y2-y1)*x0 - (x2-x1)*y0 + x2*y1 - y2*x1
     denum = getDistance(x1, y1, x2, y2)
