@@ -66,7 +66,7 @@ spacing = 0.5
 targetList = create_waypoints(init_coordinate, width, height, spacing)
 
 # Rounding the mine
-backward_speed = 1
+backward_speed = 2
 mine_clearance = 1
 
 # Markers
@@ -116,7 +116,7 @@ obstacleStates = {
     3: "Follow Wall"
 }
 
-obstacleClearance = 1
+obstacleClearance = 1.25
 
 ######################### AUXILIARY FUNCTIONS ############################
 
@@ -445,7 +445,7 @@ def showStats():
 
     std.addstr(19, 0, targetString)
 
-    std.addstr(22, 0, "Current State: {}, \tObstacle State: {}".format(states[getState()], obstacleStates[getObstacleState()]))
+    std.addstr(22, 0, "Current State: {}, \tObstacle State: {}".format(states[getState()], obstacleStates[currentObstacleState]))
     #std.addstr(21, 0, "Wrong Detected Marker Size: {}".format(len(wrongMineMarkers.markers)))
     #std.addstr(19, 0, "IMU Quaternion w: {:0.4f} x: {:0.4f} y: {:0.4f} z: {:0.4f} ".format(imuInfo.orientation.w, imuInfo.orientation.x, imuInfo.orientation.y, imuInfo.orientation.z))
     if laserInfoHokuyo.ranges != []:
@@ -483,8 +483,7 @@ def goToWaypoint(headingDiff, distance):
         robotTwist.angular.z = set_limit(kp_angular*headingDiff, angular_speed_upper_limit, angular_speed_lower_limit)
         robotTwist.linear.x = 0
     else:
-        crossTrackDistance = getCrossTrackDistance()
-        robotTwist.angular.z = 2*kp_angular*crossTrackDistance
+        robotTwist.angular.z = kp_angular*headingDiff
         if(distance > distanceTolerance):
             robotTwist.linear.x = set_limit(kp_linear * distance, linear_speed_upper_limit, linear_speed_lower_limit)
         else:
@@ -496,13 +495,40 @@ def goToWaypoint(headingDiff, distance):
             else:
                 missionFinished = True
 
+def followWall():
+    global robotTwist
+
+    robotFootPrint = 0.6
+    robotTwist.linear.x = 0.65
+    kp_followWall = 1
+
+    if (regions['fleft'] < robotFootPrint):
+        robotTwist.angular.z = kp_followWall*(robotFootPrint - regions['fleft'])
+    elif (regions['fright'] < robotFootPrint):
+        robotTwist.angular.z = -kp_followWall*(robotFootPrint - regions['fright'])
+    else:
+        robotTwist.angular.z = 0
+
+def turnLeft():
+    global robotTwist
+
+    robotTwist.linear.x = 0
+    robotTwist.angular.z = 1
+
+def turnRight():
+    global robotTwist
+
+    robotTwist.linear.x = 0
+    robotTwist.angular.z = -1
+
 # Basic control
 def KeyCheck(stdscr):
     global targetList
     global robot2detectedMineDistance
     global mineNotDetected
     global currentState
-
+    global currentObstacleState
+    
     stdscr.keypad(True)
     stdscr.nodelay(True)
     
@@ -529,6 +555,13 @@ def KeyCheck(stdscr):
         if k == "x":
             sendMine()
 
+        #obstacleStates = {
+        #    0: "No Obstacles",
+        #    1: "Turn Left",
+        #    2: "Turn Right",
+        #    3: "Follow Wall"
+        #}
+
         # get control params
         distance = getDistanceToTarget()
         headingDiff = getHeadingDiff()
@@ -541,25 +574,37 @@ def KeyCheck(stdscr):
 
         currentState = getState()
 
-        if(currentState == 0):
-            goToWaypoint(headingDiff, distance)
+        currentObstacleState = getObstacleState()
+
+        if (currentObstacleState == 0):
+            if (currentState == 0):
+                goToWaypoint(headingDiff, distance)
+            
+            elif (currentState == 1):
+                robotStop()
+                sendMine()
+
+                addWaypointsAroundTheMine()
+                    
+                currentTarget = targetList.pop(0)
+                setTargetPose(currentTarget[0], currentTarget[1], avoidingMine = True)
+
+            elif (currentState == 2):
+                robotStop()
+                sendMine()
+
+            elif (currentState == 3):
+                moveBackward(backward_speed)
+
+            else:
+                robotStop()
         
-        elif(currentState == 1):
-            robotStop()
-            sendMine()
-
-            addWaypointsAroundTheMine()
-                
-            currentTarget = targetList.pop(0)
-            setTargetPose(currentTarget[0], currentTarget[1], avoidingMine = True)
-
-        elif(currentState == 2):
-            robotStop()
-            sendMine()
-
-        elif(currentState == 3):
-            moveBackward(backward_speed)
-
+        elif (currentObstacleState == 1):
+            turnLeft()
+        elif (currentObstacleState == 2):
+            turnRight()
+        elif (currentObstacleState == 3):
+            followWall()
         else:
             robotStop()
 
