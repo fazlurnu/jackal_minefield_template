@@ -66,7 +66,7 @@ spacing = 0.5
 targetList = create_waypoints(init_coordinate, width, height, spacing)
 
 # Rounding the mine
-backward_speed = 2
+backward_speed = 0.65
 mine_clearance = 1
 
 # Markers
@@ -116,7 +116,7 @@ obstacleStates = {
     3: "Follow Wall"
 }
 
-obstacleClearance = 1.25
+obstacleClearance = 1.1
 
 ######################### AUXILIARY FUNCTIONS ############################
 
@@ -276,8 +276,10 @@ def getObstacleState():
     frontObstacleFree = regions['front'] > obstacleClearance
     fleftObstacleFree = regions['fleft'] > obstacleClearance
     frightObstacleFree = regions['fright'] > obstacleClearance
+    leftObstacleFree = regions['left'] > obstacleClearance
+    rightObstacleFree = regions['right'] > obstacleClearance
 
-    if frontObstacleFree and fleftObstacleFree and frightObstacleFree:
+    if frontObstacleFree and fleftObstacleFree and frightObstacleFree and leftObstacleFree and rightObstacleFree:
         # no obstacle
         currentObstacleState_ = 0
 
@@ -285,11 +287,11 @@ def getObstacleState():
         #obstacle front, turn left
         currentObstacleState_ = 1
 
-    elif frontObstacleFree and fleftObstacleFree and not(frightObstacleFree):
+    elif frontObstacleFree and fleftObstacleFree and (not(frightObstacleFree) or not(rightObstacleFree)):
         #wall on right side, follow wall
         currentObstacleState_ = 3
 
-    elif frontObstacleFree and not(fleftObstacleFree) and frightObstacleFree:
+    elif frontObstacleFree and (not(fleftObstacleFree) or not(leftObstacleFree)) and frightObstacleFree:
         #wall on left side, follow wall
         currentObstacleState_ = 3
 
@@ -498,14 +500,14 @@ def goToWaypoint(headingDiff, distance):
 def followWall():
     global robotTwist
 
-    robotFootPrint = 0.6
+    robotFootPrint = 0.8
     robotTwist.linear.x = 0.65
     kp_followWall = 1
 
     if (regions['fleft'] < robotFootPrint):
-        robotTwist.angular.z = kp_followWall*(robotFootPrint - regions['fleft'])
+        robotTwist.angular.z = -kp_followWall*(robotFootPrint - regions['fleft'])
     elif (regions['fright'] < robotFootPrint):
-        robotTwist.angular.z = -kp_followWall*(robotFootPrint - regions['fright'])
+        robotTwist.angular.z = kp_followWall*(robotFootPrint - regions['fright'])
     else:
         robotTwist.angular.z = 0
 
@@ -576,35 +578,35 @@ def KeyCheck(stdscr):
 
         currentObstacleState = getObstacleState()
 
-        if (currentObstacleState == 0):
-            if (currentState == 0):
+        
+        if (currentState == 0):
+            if (currentObstacleState == 0):
                 goToWaypoint(headingDiff, distance)
-            
-            elif (currentState == 1):
-                robotStop()
-                sendMine()
-
-                addWaypointsAroundTheMine()
-                    
-                currentTarget = targetList.pop(0)
-                setTargetPose(currentTarget[0], currentTarget[1], avoidingMine = True)
-
-            elif (currentState == 2):
-                robotStop()
-                sendMine()
-
-            elif (currentState == 3):
-                moveBackward(backward_speed)
-
+            elif (currentObstacleState == 1):
+                turnLeft()
+            elif (currentObstacleState == 2):
+                turnRight()
+            elif (currentObstacleState == 3):
+                followWall()
             else:
                 robotStop()
         
-        elif (currentObstacleState == 1):
-            turnLeft()
-        elif (currentObstacleState == 2):
-            turnRight()
-        elif (currentObstacleState == 3):
-            followWall()
+        elif (currentState == 1):
+            robotStop()
+            sendMine()
+
+            addWaypointsAroundTheMine()
+                
+            currentTarget = targetList.pop(0)
+            setTargetPose(currentTarget[0], currentTarget[1], avoidingMine = True)
+
+        elif (currentState == 2):
+            robotStop()
+            sendMine()
+
+        elif (currentState == 3):
+            moveBackward(backward_speed)
+
         else:
             robotStop()
 
