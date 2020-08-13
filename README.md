@@ -8,6 +8,11 @@ This repository contains the navigation algorithm to control [Jackal](https://gi
 
 ![Jackal](https://github.com/fazlurnu/jackal_minefield_template/blob/master/JackalMinefield.gif)
 
+**2. Waypoint Following + Landmine Detection + Obstacle Avoidance**
+
+![JackalwithObstacleAvoidance](https://github.com/fazlurnu/jackal_minefield_template/blob/master/withObstacleAvoidance.gif)
+For the full video, click [here](https://www.youtube.com/watch?v=7qwAT6k6M70)
+
 ### Install Dependencies:
 This is *manual* way to install necessary packages :
 ```
