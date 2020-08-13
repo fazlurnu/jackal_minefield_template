@@ -11,6 +11,7 @@ This repository contains the navigation algorithm to control [Jackal](https://gi
 **2. Waypoint Following + Landmine Detection + Obstacle Avoidance**
 
 ![JackalwithObstacleAvoidance](https://github.com/fazlurnu/jackal_minefield_template/blob/master/withObstacleAvoidance.gif)
+
 For the full video, click [here](https://www.youtube.com/watch?v=7qwAT6k6M70)
 
 ### Install Dependencies:
@@ -31,7 +32,7 @@ git clone https://github.com/fazlurnu/jackal_minefield_template.git
 ```
 HRATC 2017 Sources:
 ```
-git clone https://github.com/lsa-pucrs/metal_detector_msgs.git
+git clone https://github.com/phir2-lab/metal_detector_msgs.git
 ```
 
 ### Build and source
