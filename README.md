@@ -5,6 +5,7 @@ This repository contains the navigation algorithm to control [Jackal](https://gi
 1. When a landmine is detected, new waypoints are created around the mine as a guidance to avoid the mine.
 2. A [bug-algorithm](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&cad=rja&uact=8&ved=2ahUKEwiUvsGZ4ZfrAhXkILcAHVzPDp0QFjASegQIAxAC&url=https%3A%2F%2Fwww.cs.cmu.edu%2F~motionplanning%2Flecture%2FChap2-Bug-Alg_howie.pdf&usg=AOvVaw2kffae1giEB-SpLVJ3fw-K) is used for the obstacle avoidance
 
+Read the full documentation on [my website](https://fazlurnu.com/2020/08/24/humanitarian-robotics-autonomous-landmine-detection-rover/)!
 ### Results:
 
 **1. Waypoint Following + Landmine Detection, without Obstalces**
